@@ -729,7 +729,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8355be11b20d696c8f18f6cc018c4e372165b1fa8126cef092399c9951984ffa"
 
 [[package]]
-name = "linz_S3"
+name = "linz_s3"
 version = "0.1.0"
 dependencies = [
  "futures",

@@ -4,7 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.5.30", features = ["derive"] }
+env_logger = "0.11.6"
 futures = "0.3.31"
+log = "0.4.25"
 regex = "1.11.1"
+reqwest = "0.12.12"
 stac = { version = "0.11.1", features = ["object-store", "object-store-all", "object-store-aws"] }
 tokio = { version = "1.43.0", features = ["full", "rt-multi-thread"] }
+
+[lib]
+name = "linz_s3"

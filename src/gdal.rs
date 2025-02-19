@@ -10,9 +10,9 @@ pub fn build_vrt_from_paths(tiff_paths: Vec<String>, output_path: &str) {
     let output = command.output().expect("Failed to execute command");
 
     if output.status.success() {
-        println!("VRT file created successfully.");
+        info!("VRT file created successfully.");
     } else {
-        eprintln!(
+        error!(
             "Error creating VRT file: {:?}",
             String::from_utf8_lossy(&output.stderr)
         );

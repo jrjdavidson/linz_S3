@@ -1,7 +1,7 @@
 pub mod reporter;
 use clap::ValueEnum;
 use futures::future::join_all;
-use log::info;
+use log::{debug, info};
 use reporter::Reporter;
 use stac::{Assets, Catalog, Collection, Href, Item, Links, SelfHref};
 use std::sync::{atomic::Ordering, Arc};
@@ -224,13 +224,21 @@ async fn process_collection(
     } else {
         (lon1, lon1, lat1, lat1)
     };
-
+    debug!(
+        "Processing collection: {} with extent: {}, {}, {}, {}",
+        collection.title.as_deref().unwrap_or("N/A"),
+        lon_min,
+        lat_min,
+        lon_max,
+        lat_max
+    );
     for bbox in &collection.extent.spatial.bbox {
         if bbox.ymin() <= lat_max
             && bbox.ymax() >= lat_min
             && bbox.xmin() <= lon_max
             && bbox.xmax() >= lon_min
         {
+            debug!("Collection extent overlaps");
             return collection_extent_overlaps(
                 collection, lon_min, lat_min, lon_max, lat_max, reporter,
             )
@@ -261,6 +269,7 @@ async fn collection_extent_overlaps(
     let mut matching_items = vec![];
     let (tx, mut rx) = mpsc::channel(100);
     let title = collection.title.clone().unwrap_or_default();
+    debug!("{:?}", title);
     // let mut urls = vec![];
     // for link in collection.links() {
     //     if link.is_item() {
@@ -285,6 +294,7 @@ async fn collection_extent_overlaps(
             }
         })
         .collect();
+    debug!("Number of items: {}", urls.len());
     reporter.add_urls(urls.len() as u64).await;
     for url in urls {
         let tx = tx.clone();
@@ -297,6 +307,7 @@ async fn collection_extent_overlaps(
             .await
             {
                 Ok(item) => {
+                    println!("{:?}", item);
                     reporter.report_finished_url().await;
 
                     let bounding_box = item.bbox.unwrap();

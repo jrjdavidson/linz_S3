@@ -274,7 +274,6 @@ async fn collection_extent_overlaps(
         .links()
         .iter()
         .filter_map(|link| {
-            debug!("{:?}", link);
             if link.is_item() {
                 if let Href::Url(url) = &link.href {
                     Some(url.to_string())

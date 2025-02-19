@@ -29,7 +29,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Run tests
-        run: cargo test --verbose
+        run: RUST_LOG=debug cargo test --verbose
 
       - name: Build project
         run: cargo build --release

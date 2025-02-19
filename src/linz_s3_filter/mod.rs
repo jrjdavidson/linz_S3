@@ -341,7 +341,6 @@ async fn collection_extent_overlaps(
 }
 #[cfg(test)]
 mod tests {
-    use log::debug;
 
     use super::*;
     use std::sync::Once;

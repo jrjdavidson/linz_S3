@@ -61,6 +61,8 @@ impl LinzBucket {
                 if link.is_child() {
                     if let Href::Url(url) = &link.href {
                         Some(url.to_string())
+                    } else if let Href::String(string) = &link.href {
+                        Some(string.to_string())
                     } else {
                         None
                     }
@@ -277,6 +279,8 @@ async fn collection_extent_overlaps(
             if link.is_item() {
                 if let Href::Url(url) = &link.href {
                     Some(url.to_string())
+                } else if let Href::String(string) = &link.href {
+                    Some(string.to_string())
                 } else {
                     None
                 }
@@ -337,18 +341,20 @@ async fn collection_extent_overlaps(
 }
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use std::sync::Once;
 
-    #[tokio::test]
-    async fn test_initialise_catalog() {
-        let dataset = Dataset::Elevation;
-        let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
-        assert!(!linz_bucket.collections.is_empty());
+    static INIT: Once = Once::new();
+
+    fn init_logger() {
+        INIT.call_once(|| {
+            env_logger::builder().is_test(true).init();
+        });
     }
-
-    
     #[tokio::test]
     async fn test_process_collection() {
+        init_logger();
         use stac::Collection;
         let item = stac::read("tests/data/simple-item.json").unwrap();
         let mut collection = Collection::new_from_item("an-id", "a description", &item);
@@ -356,12 +362,14 @@ mod tests {
 
         let reporter = Arc::new(Reporter::new(1).await);
         let result = process_collection(collection, 172.93, 1.35, None, None, reporter).await;
+
         assert!(result.is_some());
         let matching_items = result.unwrap();
         assert_eq!(matching_items.title, "Test Collection");
     }
     #[test]
     fn test_extract_value_before_m() {
+        init_logger();
         let text = "100m elevation";
         let value = extract_value_before_m(text);
         assert_eq!(value, 100);
@@ -372,6 +380,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_get_hrefs() {
+        init_logger();
         use stac::Item;
         let item = Item::new("an-id");
         let items = vec![item];

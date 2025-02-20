@@ -37,12 +37,13 @@ async fn test_get_tiles_from_lat_lon_range() {
 
     let dataset = Dataset::Elevation;
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
-    let lat1 = -40.9006;
-    let lon1 = 174.8860;
-    let lat2 = -41.2865;
-    let lon2 = 174.7762;
+    let lat1 = -45.9006;
+    let lon1 = 170.8860;
+    let lat2 = -45.2865;
+    let lon2 = 175.7762;
     let tiles = linz_bucket
         .get_tiles_from_lat_lon_range(lat1, lon1, lat2, lon2)
         .await;
+    print!("{:?}", tiles);
     assert!(!tiles.is_empty());
 }

@@ -16,3 +16,7 @@ tokio = { version = "1.43.0", features = ["full", "rt-multi-thread"] }
 
 [lib]
 name = "linz_s3"
+
+[dev-dependencies]
+assert_cmd = "2.0.16"
+predicates = "3.1.3"

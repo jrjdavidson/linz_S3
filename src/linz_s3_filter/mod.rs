@@ -141,6 +141,20 @@ impl LinzBucket {
     ) -> Vec<(Vec<String>, String)> {
         self.get_tiles(lat1, lon1, Some(lat2), Some(lon2)).await
     }
+
+    pub async fn get_tiles_from_point_and_dimension(
+        &self,
+        lat: f64,
+        lon: f64,
+        width_m: f64,
+        height_m: f64,
+    ) -> Vec<(Vec<String>, String)> {
+        // Convert meters to degrees
+        let (lat1, lon1, lat2, lon2) = get_coordinate_from_dimension(lat, lon, width_m, height_m);
+
+        self.get_tiles(lat1, lon1, Some(lat2), Some(lon2)).await
+    }
+
     async fn get_tiles(
         &self,
         lat1: f64,
@@ -177,6 +191,25 @@ impl LinzBucket {
 
         get_hrefs(results).await
     }
+}
+
+// avoid using proj or gdal
+fn get_coordinate_from_dimension(
+    lat: f64,
+    lon: f64,
+    width_m: f64,
+    height_m: f64,
+) -> (f64, f64, f64, f64) {
+    let lat_offset = height_m / 111_320.0;
+    // Approx. meters per degree latitude
+    let lon_offset = width_m / (111_320.0 * lat.to_radians().cos());
+    // Approx. meters per degree longitude
+
+    let lat1 = lat - lat_offset / 2.0;
+    let lon1 = lon - lon_offset / 2.0;
+    let lat2 = lat + lat_offset / 2.0;
+    let lon2 = lon + lon_offset / 2.0;
+    (lat1, lon1, lat2, lon2)
 }
 
 async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)> {

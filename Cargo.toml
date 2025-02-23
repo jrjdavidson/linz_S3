@@ -7,6 +7,7 @@ edition = "2021"
 clap = { version = "4.5.30", features = ["derive"] }
 env_logger = "0.11.6"
 futures = "0.3.31"
+indicatif = "0.17.11"
 log = "0.4.25"
 regex = "1.11.1"
 reqwest = "0.12.12"

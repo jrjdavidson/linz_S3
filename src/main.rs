@@ -57,7 +57,8 @@ async fn main() {
             let mut tasks = vec![];
             let pb = ProgressBar::new(tile_list[index].0.len() as u64);
             pb.set_style(ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})").unwrap()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
+                .unwrap()
                 .progress_chars("#>-"));
 
             for line in &tile_list[index].0 {
@@ -88,5 +89,5 @@ async fn download_file(url: &str) {
     let path = Path::new(url).file_name().unwrap().to_str().unwrap();
     let mut file = File::create(path).unwrap();
     file.write_all(&response.bytes().await.unwrap()).unwrap();
-    info!("Downloaded: {}", path);
+    // info!("Downloaded: {}", path);
 }

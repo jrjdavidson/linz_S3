@@ -4,7 +4,7 @@ use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use linz_s3::linz_s3_filter::Dataset;
 use linz_s3::search_catalog;
-use log::info;
+use log::{error, info};
 use reqwest::get;
 use std::{
     fs::File,
@@ -12,7 +12,6 @@ use std::{
     path::Path,
 };
 use tokio::task;
-
 /// Enum for search mode.
 #[derive(ValueEnum, Clone, Debug)]
 enum SearchMode {
@@ -67,7 +66,7 @@ async fn main() {
         }
         SearchMode::Dimensions => {
             if args.arg1.is_none() || args.arg2.is_none() {
-                eprintln!("Error: Both arg1 (height in meters) and arg2 (width in meters) must be specified for dimension search.");
+                error!("Error: Both arg1 (height in meters) and arg2 (width in meters) must be specified for dimension search.");
                 std::process::exit(1);
             }
             search_catalog(
@@ -94,8 +93,8 @@ async fn main() {
             }
 
             loop {
-                println!("Please choose a dataset (enter index or type 'cancel' to exit):");
-                print!("> ");
+                info!("Please choose a dataset (enter index or type 'cancel' to exit):");
+                info!("> ");
                 io::stdout().flush().unwrap();
 
                 let mut input = String::new();
@@ -103,7 +102,7 @@ async fn main() {
                 let input = input.trim();
 
                 if input.eq_ignore_ascii_case("cancel") {
-                    println!("Operation canceled.");
+                    info!("Operation canceled.");
                     break;
                 }
 
@@ -135,13 +134,13 @@ async fn main() {
                         break;
                     }
                     _ => {
-                        println!("Invalid index. Please enter a valid number.");
+                        error!("Invalid index. Please enter a valid number.");
                     }
                 }
             }
         }
         Err(e) => {
-            eprintln!("Error: {}", e);
+            error!("Error: {}", e);
         }
     }
 }

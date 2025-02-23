@@ -22,6 +22,9 @@ Prompt user to choose a dataset from search results
 1. Build the project with cargo build
 2. Run the tool with cargo run -- <bucket> <lat> <lon> <lat1> <lon1>
 3. Follow the prompts to search and process S3 assets
+
+or just download the binary and run it on your cli.
+
 ## Notes
 
 - This project uses the STAC specification for spatial data management.

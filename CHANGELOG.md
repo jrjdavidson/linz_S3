@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.1] - 2025-02-24
+- fix sorting
+
 ## [0.2.0] - 2025-02-24
 - add skip_input
 - flip order

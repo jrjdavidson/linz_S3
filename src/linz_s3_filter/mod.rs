@@ -235,7 +235,7 @@ async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)> {
     hrefs_with_titles.sort_by(|a, b| {
         let a_key = extract_value_before_m(&a.1);
         let b_key = extract_value_before_m(&b.1);
-        b_key.partial_cmp(&a_key).unwrap()
+        a_key.partial_cmp(&b_key).unwrap()
     });
 
     hrefs_with_titles
@@ -403,13 +403,14 @@ mod tests {
     fn test_extract_value_before_m() {
         init_logger();
         let text = "100m elevation";
-        let value = extract_value_before_m(text);
-        assert_eq!(value, 100.0);
+        let value1 = extract_value_before_m(text);
+        assert_eq!(value1, 100.0);
 
         let text = "0.96m elevation";
-        let value = extract_value_before_m(text);
-        assert_eq!(value, 0.96);
-
+        let value2 = extract_value_before_m(text);
+        assert_eq!(value2, 0.96);
+        let compare = value1.partial_cmp(&value2).unwrap();
+        assert_eq!(compare, std::cmp::Ordering::Greater);
         let text = "no value";
         let value = extract_value_before_m(text);
         assert_eq!(value, f64::MAX);

@@ -44,6 +44,9 @@ struct Args {
     /// Flag to download the files.
     #[arg(short, long)]
     download: bool,
+    /// Flag to skip user input and grab the first value of tile_list.
+    #[arg(long)]
+    skip_input: bool,
 }
 
 #[tokio::main]
@@ -91,50 +94,32 @@ async fn main() {
                     index, description, tile_count
                 );
             }
+            if args.skip_input {
+                process_tile_list(&tile_list, 0, args.download).await;
+            } else {
+                loop {
+                    info!("Please choose a dataset (enter index or type 'cancel' to exit):");
+                    info!("> ");
+                    io::stdout().flush().unwrap();
 
-            loop {
-                info!("Please choose a dataset (enter index or type 'cancel' to exit):");
-                info!("> ");
-                io::stdout().flush().unwrap();
+                    let mut input = String::new();
+                    io::stdin().read_line(&mut input).unwrap();
+                    let input = input.trim();
 
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).unwrap();
-                let input = input.trim();
-
-                if input.eq_ignore_ascii_case("cancel") {
-                    info!("Operation canceled.");
-                    break;
-                }
-
-                match input.parse::<usize>() {
-                    Ok(index) if index < tile_list.len() => {
-                        let mut tasks = vec![];
-                        let progress_bar = ProgressBar::new(tile_list[index].0.len() as u64);
-                        progress_bar.set_style(ProgressStyle::default_bar()
-                            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files downloaded. Time left :{eta}")
-                            .unwrap()
-                            .progress_chars("#>-"));
-
-                        for tile_url in &tile_list[index].0 {
-                            if args.download {
-                                let url = tile_url.to_string();
-                                let progress_bar_clone = progress_bar.clone();
-                                tasks.push(task::spawn(async move {
-                                    download_file(&url, &progress_bar_clone).await;
-                                    progress_bar_clone.inc(1);
-                                }));
-                            } else {
-                                println!("{}", tile_url);
-                            }
-                        }
-                        for task in tasks {
-                            task.await.unwrap();
-                        }
-                        progress_bar.finish_with_message("Download complete");
+                    if input.eq_ignore_ascii_case("cancel") {
+                        info!("Operation canceled.");
                         break;
                     }
-                    _ => {
-                        error!("Invalid index. Please enter a valid number.");
+
+                    match input.parse::<usize>() {
+                        Ok(index) if index < tile_list.len() => {
+                            process_tile_list(&tile_list, index, args.download).await;
+
+                            break;
+                        }
+                        _ => {
+                            error!("Invalid index. Please enter a valid number.");
+                        }
                     }
                 }
             }
@@ -144,7 +129,31 @@ async fn main() {
         }
     }
 }
+async fn process_tile_list(tile_list: &[(Vec<String>, String)], index: usize, download: bool) {
+    let mut tasks = vec![];
+    let progress_bar = ProgressBar::new(tile_list[index].0.len() as u64);
+    progress_bar.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files downloaded. Time left :{eta}")
+        .unwrap()
+        .progress_chars("#>-"));
 
+    for tile_url in &tile_list[index].0 {
+        if download {
+            let url = tile_url.to_string();
+            let progress_bar_clone = progress_bar.clone();
+            tasks.push(task::spawn(async move {
+                download_file(&url, &progress_bar_clone).await;
+                progress_bar_clone.inc(1);
+            }));
+        } else {
+            println!("{}", tile_url);
+        }
+    }
+    for task in tasks {
+        task.await.unwrap();
+    }
+    progress_bar.finish_with_message("Download complete");
+}
 /// Downloads a file from the given URL and updates the progress bar.
 async fn download_file(url: &str, progress_bar: &ProgressBar) {
     let response = get(url).await.unwrap();

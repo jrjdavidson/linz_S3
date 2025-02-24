@@ -236,7 +236,7 @@ async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)> {
     hrefs_with_titles.sort_by(|a, b| {
         let a_key = extract_value_before_m(&a.1);
         let b_key = extract_value_before_m(&b.1);
-        a_key.cmp(&b_key)
+        b_key.cmp(&a_key)
     });
 
     hrefs_with_titles

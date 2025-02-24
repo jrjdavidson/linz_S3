@@ -232,11 +232,10 @@ async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)> {
         }
         hrefs_with_titles.push((items, result.title));
     }
-
     hrefs_with_titles.sort_by(|a, b| {
         let a_key = extract_value_before_m(&a.1);
         let b_key = extract_value_before_m(&b.1);
-        b_key.cmp(&a_key)
+        b_key.partial_cmp(&a_key).unwrap()
     });
 
     hrefs_with_titles
@@ -276,12 +275,12 @@ async fn process_collection(
     None
 }
 
-fn extract_value_before_m(text: &str) -> i32 {
+fn extract_value_before_m(text: &str) -> f64 {
     let re = regex::Regex::new(r"(\d+(\.\d+)?)m\s+").unwrap();
     if let Some(caps) = re.captures(text) {
-        caps[1].parse().unwrap_or(i32::MAX)
+        caps[1].parse().unwrap_or(f64::MAX)
     } else {
-        i32::MAX
+        f64::MAX
     }
 }
 
@@ -405,11 +404,15 @@ mod tests {
         init_logger();
         let text = "100m elevation";
         let value = extract_value_before_m(text);
-        assert_eq!(value, 100);
+        assert_eq!(value, 100.0);
+
+        let text = "0.96m elevation";
+        let value = extract_value_before_m(text);
+        assert_eq!(value, 0.96);
 
         let text = "no value";
         let value = extract_value_before_m(text);
-        assert_eq!(value, i32::MAX);
+        assert_eq!(value, f64::MAX);
     }
     #[tokio::test]
     async fn test_get_hrefs() {

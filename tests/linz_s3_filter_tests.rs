@@ -1,4 +1,4 @@
-use linz_s3::linz_s3_filter::{Dataset, LinzBucket};
+use linz_s3::search::{Dataset, LinzBucket};
 use std::sync::Once;
 
 static INIT: Once = Once::new();

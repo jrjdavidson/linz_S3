@@ -1,8 +1,7 @@
-pub mod reporter;
+use crate::search::reporter::Reporter;
 use clap::ValueEnum;
 use futures::future::join_all;
 use log::info;
-use reporter::Reporter;
 use stac::{Assets, Catalog, Collection, Href, Item, Links, SelfHref};
 use std::sync::{atomic::Ordering, Arc};
 use std::{thread, time::Duration};

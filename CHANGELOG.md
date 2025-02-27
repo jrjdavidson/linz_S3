@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - 2025-02-24
+- add new args to automate picking if requried.
+- add name filter to dataset collection
+
 ## [0.2.1] - 2025-02-24
 - fix sorting
 

@@ -6,7 +6,7 @@ use clap::{command, Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "linz_s3_filter",
-    version = "0.2.1",
+    version = "0.3.0",
     author = "Jonathan Davidson <jrjddavidson@gmail.com>",
     about = "A tool to search for, filter, and download datasets from LINZ S3 buckets.",
     allow_negative_numbers = true
@@ -15,17 +15,17 @@ use clap::{command, Parser, Subcommand};
 pub struct Cli {
     /// The dataset bucket to search (e.g., imagery or elevation).
     pub bucket: dataset::LinzBucketName,
-    /// Search mode: "coordinates" for lat/lon range, "dimensions" for search by approx height/width in m.
+    /// Search mode: "coordinate" for lat/lon range, "area" for search by approx height/width in m.
     #[command(subcommand)]
     ///Filter spatially by coordinates or dimensions.
     pub spatial_filter: Option<SpatialFilter>,
     #[arg(short, long)]
-    /// download the chosen dataset.
+    /// Download the tiles.
     pub download: bool,
     /// Automatically select the first dataset found, usually the highest resolution dataset.
     #[arg(short, group = "auto_select", long)]
     pub first: bool,
-    /// Filter by collection name. can be used multiple times, will match any of the provided names.
+    /// Filter by collection name. Can be used multiple times, will match any of the provided names.
     #[arg(short = 'n', long)]
     pub by_collection_name: Option<Vec<String>>,
     /// Automatically select the dataset with the most tiles. Useful for downloading the dataset with the highest resolution and cover.
@@ -35,19 +35,19 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum SpatialFilter {
-    /// Filter by coordinates.
+    /// A Spatial filter to filter by coordinates or area.
     #[command(allow_negative_numbers = true)]
     Coordinate {
         /// Latitude of the point to search.
         lat1: f64,
         /// Longitude of the point to search.
         lon1: f64,
-        /// Optional second latitude.
+        /// Optional second latitude. If this and lon2_opt are not provided, the spatial filter will return all tiles that include just the lat1, lon1 point.
         lat2_opt: Option<f64>,
-        /// Optional second longitude or width in meters.
+        /// Optional second longitude.
         lon2_opt: Option<f64>,
     },
-    /// Filter by area.
+    /// A Spatial filter to filter by pooint and search area.
     #[command(allow_negative_numbers = true)]
     Area {
         /// Latitude of the center of filter area.

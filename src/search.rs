@@ -8,7 +8,7 @@ use crate::args::SpatialFilterParams;
 pub async fn search_catalog(
     bucket: dataset::LinzBucketName,
     spatial_params: Option<SpatialFilterParams>,
-    collection_name_filter_opt: Option<String>,
+    collection_name_filter_opt: Option<Vec<String>>,
 ) -> Result<Vec<(Vec<String>, String)>, MyError> {
     let mut linz_bucket = LinzBucket::initialise_catalog(bucket).await;
     if let Some(collection_name_filter) = &collection_name_filter_opt {

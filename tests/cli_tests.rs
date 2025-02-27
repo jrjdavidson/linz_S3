@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_latlonsearch() {
@@ -94,25 +95,47 @@ async fn test_empty_search_results() {
 
     cmd.assert()
         .success()
-        .stdout(predicates::str::contains("No results found"));
+        .stderr(predicates::str::contains("No datasets found"));
+}
+#[tokio::test]
+async fn test_invalid_args() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-fs")
+        .arg("coordinate")
+        .arg("-90.0")
+        .arg("-180.0")
+        .arg("-90.0")
+        .arg("-180.0");
+
+    cmd.assert()
+        .failure()
+        .stderr(predicates::str::contains("error: the argument "));
 }
 
 #[tokio::test]
 async fn test_valid_search_with_download() {
+    let temp_dir = tempdir().unwrap();
+    let temp_path = temp_dir.path();
+
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--download")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")
         .arg("-45.2865")
         .arg("175.7762")
-        .arg("--download");
+        .current_dir(temp_path); // Set the current directory to the temp directory
+
     // Simulate user input for the dataset index
     cmd.write_stdin("0\n");
 
     cmd.assert().success();
-}
 
+    // The temporary directory and its contents will be automatically cleaned up
+    // when `temp_dir` goes out of scope.
+}
 #[tokio::test]
 async fn test_valid_search_with_condition() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
@@ -132,6 +155,21 @@ async fn test_valid_search_with_conditon_and_one_result() {
     cmd.arg("elevation")
         .arg("-n")
         .arg("\"Southland LiDAR 1m DSM (2020-2024)\"")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("170.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+
+    cmd.assert().success();
+}
+#[tokio::test]
+async fn test_valid_search_with_conditon_and_mulitple_result() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-n")
+        .arg("Southland")
+        .arg("-s")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")

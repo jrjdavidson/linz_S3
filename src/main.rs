@@ -17,7 +17,8 @@ async fn main() {
     } else {
         None
     };
-    let tile_list = search_catalog(args.bucket, spatial_filter_params, None).await;
+    let tile_list =
+        search_catalog(args.bucket, spatial_filter_params, args.by_collection_name).await;
     match tile_list {
         Ok(tile_list) => {
             for (index, (tile_paths, description)) in tile_list.iter().enumerate() {
@@ -33,13 +34,21 @@ async fn main() {
                     return;
                 }
                 1 => {
-                    info!("1 dataset found, processing...");
+                    info!("Exactly 1 dataset found, processing...");
                     process_tile_list(&tile_list, 0, args.download).await;
                 }
                 _ => {
                     info!("{} datasets found.", tile_list.len());
                     if args.first {
                         process_tile_list(&tile_list, 0, args.download).await;
+                    } else if args.by_size {
+                        let index_of_longest = tile_list
+                            .iter()
+                            .enumerate()
+                            .max_by_key(|(_, (vec, _))| vec.len())
+                            .map(|(index, _)| index)
+                            .unwrap();
+                        process_tile_list(&tile_list, index_of_longest, args.download).await;
                     } else {
                         loop {
                             info!(

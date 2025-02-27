@@ -17,14 +17,19 @@ pub struct Cli {
     pub bucket: dataset::LinzBucketName,
     /// Search mode: "coordinates" for lat/lon range, "dimensions" for search by approx height/width in m.
     #[command(subcommand)]
+    ///Filter spatially by coordinates or dimensions.
     pub spatial_filter: Option<SpatialFilter>,
     #[arg(short, long)]
+    /// download the chosen dataset.
     pub download: bool,
-    #[arg(short, long)]
+    /// Automatically select the first dataset found, usually the highest resolution dataset.
+    #[arg(short, group = "auto_select", long)]
     pub first: bool,
-    #[arg(short = 'n', group = "filter_content", long)]
-    pub by_collection_name: Option<String>,
-    #[arg(short = 's', group = "filter_content", long)]
+    /// Filter by collection name. can be used multiple times, will match any of the provided names.
+    #[arg(short = 'n', long)]
+    pub by_collection_name: Option<Vec<String>>,
+    /// Automatically select the dataset with the most tiles. Useful for downloading the dataset with the highest resolution and cover.
+    #[arg(short = 's', group = "auto_select", long)]
     pub by_size: bool,
 }
 

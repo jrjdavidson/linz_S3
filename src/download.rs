@@ -45,13 +45,3 @@ async fn download_file(url: &str, progress_bar: &ProgressBar) {
         progress_bar.tick();
     }
 }
-pub fn auto_choose_index(tile_list: &[(Vec<String>, String)], condition: &str) -> usize {
-    // Implement your condition logic here.
-    // For example, choose the first dataset that matches the condition.
-    for (index, (_, description)) in tile_list.iter().enumerate() {
-        if description.contains(condition) {
-            return index;
-        }
-    }
-    0 // Default to the first dataset if no match is found.
-}

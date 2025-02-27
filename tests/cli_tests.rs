@@ -8,7 +8,7 @@ async fn test_latlonsearch() {
     let lon2 = "175.7762";
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("coordinate-search")
+        .arg("coordinate")
         .arg(lat1)
         .arg(lon1)
         .arg(lat2)
@@ -23,7 +23,7 @@ async fn test_latlonsearch() {
 async fn test_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("area-search")
+        .arg("area")
         .arg("-45.0")
         .arg("167")
         .arg("1000.0")
@@ -52,10 +52,7 @@ async fn test_invalid_search_mode() {
 #[tokio::test]
 async fn test_missing_arguments_for_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
-    cmd.arg("elevation")
-        .arg("area-search")
-        .arg("-45.0")
-        .arg("167.0");
+    cmd.arg("elevation").arg("area").arg("-45.0").arg("167.0");
 
     cmd.assert().failure().stderr(predicates::str::contains(
         "the following required arguments were not provided:",
@@ -65,7 +62,7 @@ async fn test_missing_arguments_for_areasearch() {
 #[tokio::test]
 async fn test_missing_arguments_for_coordinatesearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
-    cmd.arg("elevation").arg("coordinate-search").arg("-45.0");
+    cmd.arg("elevation").arg("coordinate").arg("-45.0");
 
     cmd.assert().failure().stderr(predicates::str::contains(
         "the following required arguments were not provided:",
@@ -76,7 +73,7 @@ async fn test_missing_arguments_for_coordinatesearch() {
 async fn test_invalid_latlon_values() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("coordinate-search")
+        .arg("coordinate")
         .arg("invalid_lat")
         .arg("invalid_lon");
 
@@ -89,7 +86,7 @@ async fn test_invalid_latlon_values() {
 async fn test_empty_search_results() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("coordinate-search")
+        .arg("coordinate")
         .arg("-90.0")
         .arg("-180.0")
         .arg("-90.0")
@@ -104,7 +101,7 @@ async fn test_empty_search_results() {
 async fn test_valid_search_with_download() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("coordinate-search")
+        .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")
         .arg("-45.2865")
@@ -120,15 +117,26 @@ async fn test_valid_search_with_download() {
 async fn test_valid_search_with_condition() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("coordinate-search")
+        .arg("--first")
+        .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")
         .arg("-45.2865")
-        .arg("175.7762")
-        .arg("--condition")
-        .arg("first");
-    // Simulate user input for the dataset index
-    cmd.write_stdin("0\n");
+        .arg("175.7762");
+
+    cmd.assert().success();
+}
+#[tokio::test]
+async fn test_valid_search_with_conditon_and_one_result() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-n")
+        .arg("\"Southland LiDAR 1m DSM (2020-2024)\"")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("170.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
 
     cmd.assert().success();
 }

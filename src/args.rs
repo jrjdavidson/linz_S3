@@ -1,5 +1,5 @@
 use crate::linz_s3_filter::dataset;
-use clap::{command, Parser, Subcommand};
+use clap::{builder::ValueParser, command, Parser, Subcommand};
 
 /// Enum for search mode.
 
@@ -39,20 +39,26 @@ pub enum SpatialFilter {
     #[command(allow_negative_numbers = true)]
     Coordinate {
         /// Latitude of the point to search.
+        #[arg(value_parser = latitude_parser())]
         lat1: f64,
         /// Longitude of the point to search.
+        #[arg(value_parser = longitude_parser())]
         lon1: f64,
         /// Optional second latitude. If this and lon2_opt are not provided, the spatial filter will return all tiles that include just the lat1, lon1 point.
+        #[arg(value_parser = latitude_parser())]
         lat2_opt: Option<f64>,
         /// Optional second longitude.
+        #[arg(value_parser = longitude_parser())]
         lon2_opt: Option<f64>,
     },
     /// A Spatial filter to filter by pooint and search area.
     #[command(allow_negative_numbers = true)]
     Area {
         /// Latitude of the center of filter area.
+        #[arg(value_parser = latitude_parser())]
         lat1: f64,
         /// Longitude of the center of filter area.
+        #[arg(value_parser = longitude_parser())]
         lon1: f64,
         /// Width in meters. If no other argument is provided, this will also be the height.
         width_m: f64,
@@ -101,4 +107,32 @@ impl SpatialFilterParams {
             },
         }
     }
+}
+use std::str::FromStr;
+fn latitude_parser() -> ValueParser {
+    ValueParser::new(|s: &str| {
+        let val = f64::from_str(s).map_err(|_| format!("Invalid latitude: {}", s))?;
+        if (-90.0..=90.0).contains(&val) {
+            Ok(val)
+        } else {
+            Err(format!(
+                "Latitude must be between -90 and 90 degrees: {}",
+                s
+            ))
+        }
+    })
+}
+
+fn longitude_parser() -> ValueParser {
+    ValueParser::new(|s: &str| {
+        let val = f64::from_str(s).map_err(|_| format!("Invalid longitude: {}", s))?;
+        if (-180.0..=180.0).contains(&val) {
+            Ok(val)
+        } else {
+            Err(format!(
+                "Longitude must be between -180 and 180 degrees: {}",
+                s
+            ))
+        }
+    })
 }

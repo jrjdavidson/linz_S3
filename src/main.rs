@@ -40,6 +40,8 @@ async fn main() {
                 _ => {
                     info!("{} datasets found.", tile_list.len());
                     if args.first {
+                        info!("Automatically picked first dataset: {}", &tile_list[0].1);
+
                         process_tile_list(&tile_list, 0, args.download).await;
                     } else if args.by_size {
                         let index_of_longest = tile_list
@@ -48,6 +50,11 @@ async fn main() {
                             .max_by_key(|(_, (vec, _))| vec.len())
                             .map(|(index, _)| index)
                             .unwrap();
+                        info!(
+                            "Automatically picked dataset with most tiles: {}",
+                            &tile_list[index_of_longest].1
+                        );
+
                         process_tile_list(&tile_list, index_of_longest, args.download).await;
                     } else {
                         loop {
@@ -68,6 +75,11 @@ async fn main() {
 
                             match input.parse::<usize>() {
                                 Ok(index) if index < tile_list.len() => {
+                                    info!(
+                                        "You picked dataset number {}: {}",
+                                        index, &tile_list[index].1
+                                    );
+
                                     process_tile_list(&tile_list, index, args.download).await;
 
                                     break;

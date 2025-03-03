@@ -80,7 +80,7 @@ async fn test_invalid_latlon_values() {
 
     cmd.assert()
         .failure()
-        .stderr(predicates::str::contains("invalid float literal"));
+        .stderr(predicates::str::contains("error: invalid value"));
 }
 
 #[tokio::test]

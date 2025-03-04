@@ -1,12 +1,18 @@
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
+use log::info;
 use reqwest::get;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::task;
 
-pub async fn process_tile_list(tile_list: &[(Vec<String>, String)], index: usize, download: bool) {
+pub async fn process_tile_list(
+    tile_list: &[(Vec<String>, String)],
+    index: usize,
+    download: bool,
+    cache_opt: Option<PathBuf>,
+) {
     let mut tasks = vec![];
     let progress_bar = ProgressBar::new(tile_list[index].0.len() as u64);
     progress_bar.set_style(ProgressStyle::default_bar()
@@ -18,8 +24,21 @@ pub async fn process_tile_list(tile_list: &[(Vec<String>, String)], index: usize
         if download {
             let url = tile_url.to_string();
             let progress_bar_clone = progress_bar.clone();
+            let output_folder = cache_opt.clone().unwrap_or_else(|| PathBuf::from("."));
+            let file_name = Path::new(&url).file_name().unwrap().to_str().unwrap();
+            let current_path = output_folder.join(file_name);
+
+            // Check if the file already exists in the cache or current directory
+            if current_path.exists() {
+                info!(
+                    "File already exists in current directory: {}",
+                    current_path.display()
+                );
+                continue;
+            }
+
             tasks.push(task::spawn(async move {
-                download_file(&url, &progress_bar_clone).await;
+                download_file(&url, &progress_bar_clone, current_path).await;
                 progress_bar_clone.inc(1);
             }));
         } else {
@@ -32,11 +51,10 @@ pub async fn process_tile_list(tile_list: &[(Vec<String>, String)], index: usize
     progress_bar.finish_with_message("Download complete");
 }
 
-async fn download_file(url: &str, progress_bar: &ProgressBar) {
+async fn download_file(url: &str, progress_bar: &ProgressBar, output_file: PathBuf) {
     let response = get(url).await.unwrap();
 
-    let file_name = Path::new(url).file_name().unwrap().to_str().unwrap();
-    let mut file = File::create(file_name).unwrap();
+    let mut file = File::create(output_file).unwrap();
 
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {

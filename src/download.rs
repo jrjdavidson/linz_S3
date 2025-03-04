@@ -32,6 +32,7 @@ pub async fn process_tile_list(
             let file_name = Path::new(&url).file_name().unwrap().to_str().unwrap();
             let current_path = output_folder.join(file_name);
             // Check if the file already exists in the cache or current directory
+            println!("{}", current_path.display());
             if current_path.exists() {
                 info!(
                     "File already exists in current directory: {}",
@@ -41,7 +42,6 @@ pub async fn process_tile_list(
             }
             // Create the subfolder if it doesn't exist
             fs::create_dir_all(&output_folder).unwrap();
-            println!("{}", current_path.display());
             tasks.push(task::spawn(async move {
                 download_file(&url, &progress_bar_clone, current_path).await;
                 progress_bar_clone.inc(1);

@@ -41,7 +41,7 @@ pub async fn process_tile_list(
             }
             // Create the subfolder if it doesn't exist
             fs::create_dir_all(&output_folder).unwrap();
-
+            println!("{}", current_path.display());
             tasks.push(task::spawn(async move {
                 download_file(&url, &progress_bar_clone, current_path).await;
                 progress_bar_clone.inc(1);

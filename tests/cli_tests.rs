@@ -158,7 +158,7 @@ async fn test_valid_search_with_download() {
     // Simulate user input for the dataset index
     cmd.write_stdin("0\n");
 
-    let num_lines = 0; // Specify the number of lines you want to match
+    let num_lines = 1; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
     cmd.assert().success().stdout(pred);
 
@@ -241,7 +241,7 @@ async fn test_valid_search_with_download_and_cache() {
 
     // Simulate user input for the dataset index
     cmd.write_stdin("0\n");
-    let num_lines = 0; // Specify the number of lines you want to match
+    let num_lines = 2; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
     cmd.assert().stdout(pred).success();
     let files: Vec<_> = fs::read_dir(temp_path)

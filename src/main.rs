@@ -5,7 +5,7 @@ use linz_s3::process_tile_list;
 use linz_s3::{search_catalog, Cli};
 use log::{error, info};
 use std::io::{self, Write};
-
+use std::path::{Path, PathBuf};
 /// Command-line arguments for the LINZ S3 filter tool.
 
 #[tokio::main]
@@ -17,6 +17,7 @@ async fn main() {
     } else {
         None
     };
+    let cache_path_opt: Option<PathBuf> = args.cache.map(|cache| Path::new(&cache).to_owned());
     let tile_list =
         search_catalog(args.bucket, spatial_filter_params, args.by_collection_name).await;
     match tile_list {
@@ -35,14 +36,14 @@ async fn main() {
                 }
                 1 => {
                     info!("Exactly 1 dataset found, processing...");
-                    process_tile_list(&tile_list, 0, args.download).await;
+                    process_tile_list(&tile_list, 0, args.download, cache_path_opt).await;
                 }
                 _ => {
                     info!("{} datasets found.", tile_list.len());
                     if args.first {
                         info!("Automatically picked first dataset: {}", &tile_list[0].1);
 
-                        process_tile_list(&tile_list, 0, args.download).await;
+                        process_tile_list(&tile_list, 0, args.download, cache_path_opt).await;
                     } else if args.by_size {
                         let index_of_longest = tile_list
                             .iter()
@@ -55,7 +56,13 @@ async fn main() {
                             &tile_list[index_of_longest].1
                         );
 
-                        process_tile_list(&tile_list, index_of_longest, args.download).await;
+                        process_tile_list(
+                            &tile_list,
+                            index_of_longest,
+                            args.download,
+                            cache_path_opt,
+                        )
+                        .await;
                     } else {
                         loop {
                             info!(
@@ -80,7 +87,13 @@ async fn main() {
                                         index, &tile_list[index].1
                                     );
 
-                                    process_tile_list(&tile_list, index, args.download).await;
+                                    process_tile_list(
+                                        &tile_list,
+                                        index,
+                                        args.download,
+                                        cache_path_opt,
+                                    )
+                                    .await;
 
                                     break;
                                 }

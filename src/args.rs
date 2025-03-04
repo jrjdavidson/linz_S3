@@ -22,6 +22,9 @@ pub struct Cli {
     #[arg(short, long)]
     /// Download the tiles.
     pub download: bool,
+    #[arg(short, long,value_parser = folder_parser(), requires = "download")]
+    /// Cache directory for downloaded tiles.
+    pub cache: Option<String>,
     /// Automatically select the first dataset found, usually the highest resolution dataset.
     #[arg(short, group = "auto_select", long)]
     pub first: bool,
@@ -108,7 +111,7 @@ impl SpatialFilterParams {
         }
     }
 }
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 fn latitude_parser() -> ValueParser {
     ValueParser::new(|s: &str| {
         let val = f64::from_str(s).map_err(|_| format!("Invalid latitude: {}", s))?;
@@ -133,6 +136,17 @@ fn longitude_parser() -> ValueParser {
                 "Longitude must be between -180 and 180 degrees: {}",
                 s
             ))
+        }
+    })
+}
+
+fn folder_parser() -> ValueParser {
+    ValueParser::new(|s: &str| {
+        let path = Path::new(s);
+        if path.is_dir() {
+            Ok(s.to_string())
+        } else {
+            Err(format!("'{}' is not a valid directory", s))
         }
     })
 }

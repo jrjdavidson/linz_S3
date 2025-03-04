@@ -50,6 +50,8 @@ pub async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)
         a_key.partial_cmp(&b_key).unwrap()
     });
 
+    hrefs_with_titles.sort_by(|a, b| a.1.cmp(&b.1));
+
     hrefs_with_titles
 }
 

@@ -1,4 +1,4 @@
-use std::{fs, time::SystemTime};
+use std::{fs, path::PathBuf, time::SystemTime};
 
 use assert_cmd::Command;
 use tempfile::tempdir;
@@ -223,7 +223,7 @@ async fn test_valid_search_with_conditon_and_mulitple_result() {
 }
 
 #[tokio::test]
-async fn test_valid_search_with_download_and_no_cache() {
+async fn test_valid_search_with_download_and_cache() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
 
@@ -243,17 +243,13 @@ async fn test_valid_search_with_download_and_no_cache() {
     cmd.write_stdin("0\n");
     let num_lines = 0; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
-
     cmd.assert().stdout(pred).success();
     let files: Vec<_> = fs::read_dir(temp_path)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .collect();
-    assert_eq!(
-        files.len(),
-        2,
-        "Expected exactly one file in the temporary directory"
-    );
+    let file_number = 2;
+    check_folder_content(&files, file_number);
     // Capture the modification times of all files before the second run
     let mod_times_before: Vec<SystemTime> = files
         .iter()
@@ -273,22 +269,25 @@ async fn test_valid_search_with_download_and_no_cache() {
         .current_dir(temp_path); // Set the current directory to the temp directory
 
     // Simulate user input for the dataset index
-    cmd.write_stdin("1\n");
+    cmd.write_stdin("0\n");
     let num_lines = 0; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
 
-    cmd.assert().stdout(pred).success();
+    cmd.assert()
+        .stdout(pred)
+        .stderr(predicates::str::contains("File already exists"))
+        .success();
+    let file_number = 2;
+    check_folder_content(&files, file_number);
 
     // Capture the contents of the cache directory after the second run
     let files: Vec<_> = fs::read_dir(temp_path)
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .collect();
-    assert_eq!(
-        files.len(),
-        2,
-        "Expected exactly one file in the temporary directory"
-    );
+    let file_number = 2;
+    check_folder_content(&files, file_number);
+
     // Capture the modification times of all files after the second run
     let mod_times_after: Vec<SystemTime> = files
         .iter()
@@ -296,5 +295,29 @@ async fn test_valid_search_with_download_and_no_cache() {
         .collect();
 
     // Compare the modification times before and after the second run
-    assert_ne!(mod_times_before, mod_times_after, "Files were overwritten",);
+    assert_eq!(mod_times_before, mod_times_after, "Files were overwritten",);
+}
+
+fn check_folder_content(files: &[PathBuf], file_number: usize) {
+    // Check if there is exactly one subfolder in the temporary directory
+    let subfolders: Vec<_> = files.iter().filter(|path| path.is_dir()).collect();
+    assert_eq!(
+        subfolders.len(),
+        1,
+        "Expected exactly one subfolder in the temporary directory"
+    );
+
+    // Get the path of the subfolder
+    let subfolder_path = subfolders[0];
+
+    // Check the contents of the subfolder
+    let subfolder_files: Vec<_> = fs::read_dir(subfolder_path)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(
+        subfolder_files.len(),
+        file_number,
+        "Expected exactly one file in the subfolder"
+    );
 }

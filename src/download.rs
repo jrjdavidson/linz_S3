@@ -2,7 +2,7 @@ use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
 use reqwest::get;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tokio::task;
@@ -24,10 +24,13 @@ pub async fn process_tile_list(
         if download {
             let url = tile_url.to_string();
             let progress_bar_clone = progress_bar.clone();
-            let output_folder = cache_opt.clone().unwrap_or_else(|| PathBuf::from("."));
+            let subfolder = tile_list[index].1.clone();
+            let output_folder = cache_opt
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(&subfolder);
             let file_name = Path::new(&url).file_name().unwrap().to_str().unwrap();
             let current_path = output_folder.join(file_name);
-
             // Check if the file already exists in the cache or current directory
             if current_path.exists() {
                 info!(
@@ -36,6 +39,8 @@ pub async fn process_tile_list(
                 );
                 continue;
             }
+            // Create the subfolder if it doesn't exist
+            fs::create_dir_all(&output_folder).unwrap();
 
             tasks.push(task::spawn(async move {
                 download_file(&url, &progress_bar_clone, current_path).await;

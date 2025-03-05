@@ -226,7 +226,33 @@ async fn test_valid_search_with_conditon_and_mulitple_result() {
 async fn test_valid_search_with_download_and_cache() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
+    let cache_dir = tempdir().unwrap();
+    let cache_path = cache_dir.path();
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("--download")
+        .arg("-c")
+        .arg(cache_path)
+        .arg("-n")
+        .arg("Southland")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("169.1860")
+        .arg("-45.2865")
+        .arg("175.7762")
+        .current_dir(temp_path); // Set the current directory to the temp directory
 
+    // Simulate user input for the dataset index
+    cmd.write_stdin("0\n");
+    let num_lines = 2; // Specify the number of lines you want to match
+    let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
+    cmd.assert().stdout(pred).success();
+    let files: Vec<_> = fs::read_dir(cache_path)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    let file_number = 2;
+    check_folder_content(&files, file_number);
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("--download")

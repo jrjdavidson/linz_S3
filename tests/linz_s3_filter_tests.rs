@@ -68,7 +68,7 @@ async fn test_get_tiles_from_point_and_dimension_filter() {
 
     let dataset = dataset::LinzBucketName::Elevation;
     let mut linz_bucket = LinzBucket::initialise_catalog(dataset).await;
-    linz_bucket.set_collection_filter(&["Southland".to_string()]);
+    linz_bucket.set_collection_filter(Some(&["Southland".to_string()]), None);
     let lat = -45.0;
     let lon = 167.0;
     let width_m = 100000.0; // 100 km

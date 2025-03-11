@@ -179,12 +179,26 @@ impl LinzBucket {
         self.get_tiles(None, None, None, None).await
     }
 
-    pub fn set_collection_filter(&mut self, collection_name_filters: &[String]) {
+    pub fn set_collection_filter(
+        &mut self,
+        collection_name_filters: Option<&[String]>,
+        exclusion_filters: Option<&[String]>,
+    ) {
         self.collections.retain(|collection| {
-            collection_name_filters.iter().any(|filter| {
-                collection.id.contains(filter)
-                    || collection.title.as_deref().unwrap_or("").contains(filter)
-            })
+            let include = collection_name_filters.map_or(true, |filters| {
+                filters.is_empty()
+                    || filters.iter().any(|filter| {
+                        collection.id.contains(filter)
+                            || collection.title.as_deref().unwrap_or("").contains(filter)
+                    })
+            });
+            let exclude = exclusion_filters.is_some_and(|filters| {
+                filters.iter().any(|filter| {
+                    collection.id.contains(filter)
+                        || collection.title.as_deref().unwrap_or("").contains(filter)
+                })
+            });
+            include && !exclude
         });
     }
 }

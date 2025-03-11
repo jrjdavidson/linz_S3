@@ -65,4 +65,37 @@ mod tests {
         assert_eq!(hrefs.len(), 1);
         assert_eq!(hrefs[0].1, "Test Collection");
     }
+    #[tokio::test]
+    async fn test_get_hrefs_sorting() {
+        use stac::Item;
+        // Create mock items
+        let item1 = Item::new("id1");
+        let item2 = Item::new("id2");
+        let item3 = Item::new("id3");
+
+        // Create mock MatchingItems
+        let matching_items = vec![
+            dataset::MatchingItems {
+                title: "title 10m 2020".to_string(),
+                items: vec![item1.clone()],
+            },
+            dataset::MatchingItems {
+                title: "title 5m 2020".to_string(),
+                items: vec![item2.clone()],
+            },
+            dataset::MatchingItems {
+                title: "another title 10m 2020".to_string(),
+                items: vec![item3.clone()],
+            },
+        ];
+
+        // Call the function
+        let hrefs = utils::get_hrefs(matching_items).await;
+
+        // Verify the sorting order
+        assert_eq!(hrefs.len(), 3);
+        assert_eq!(hrefs[0].1, "title 5m 2020");
+        assert_eq!(hrefs[1].1, "another title 10m 2020");
+        assert_eq!(hrefs[2].1, "title 10m 2020");
+    }
 }

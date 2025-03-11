@@ -1,6 +1,6 @@
 use crate::linz_s3_filter::dataset::MatchingItems;
 use crate::linz_s3_filter::reporter::Reporter;
-use log::info;
+use log::{info, warn};
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
@@ -44,14 +44,13 @@ pub async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)
         }
         hrefs_with_titles.push((items, result.title));
     }
+    hrefs_with_titles.sort_by(|a, b| a.1.cmp(&b.1));
+
     hrefs_with_titles.sort_by(|a, b| {
         let a_key = extract_value_before_m(&a.1);
         let b_key = extract_value_before_m(&b.1);
         a_key.partial_cmp(&b_key).unwrap()
     });
-
-    hrefs_with_titles.sort_by(|a, b| a.1.cmp(&b.1));
-
     hrefs_with_titles
 }
 
@@ -100,6 +99,7 @@ pub fn extract_value_before_m(text: &str) -> f64 {
     if let Some(caps) = re.captures(text) {
         caps[1].parse().unwrap_or(f64::MAX)
     } else {
+        warn!("No match found in: {:?}", text);
         f64::MAX
     }
 }
@@ -232,4 +232,70 @@ fn extract_urls(collection: &Collection) -> Vec<String> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use stac::Item;
+
+    use super::*;
+
+    #[test]
+    fn test_get_coordinate_from_dimension() {
+        let (lat1, lon1, lat2, lon2) = get_coordinate_from_dimension(0.0, 0.0, 1000.0, 1000.0);
+        assert!((lat1 - (-0.004491)).abs() < 1e-6);
+        assert!((lon1 - (-0.004491)).abs() < 1e-6);
+        assert!((lat2 - 0.004491).abs() < 1e-6);
+        assert!((lon2 - 0.004491).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_extract_value_before_m() {
+        assert_eq!(extract_value_before_m("123.45m some text"), 123.45);
+        assert_eq!(extract_value_before_m("no number before m"), f64::MAX);
+    }
+    #[tokio::test]
+    async fn test_get_hrefs() {
+        use crate::linz_s3_filter::dataset::MatchingItems;
+
+        let item1: Item = stac::read("tests/data/simple-item.json").unwrap();
+
+        let item2: Item = stac::read("tests/data/simple-item.json").unwrap();
+
+        let matching_items = vec![
+            MatchingItems {
+                title: "10m title".to_string(),
+                items: vec![item1.clone()],
+            },
+            MatchingItems {
+                title: "5m title".to_string(),
+                items: vec![item2.clone()],
+            },
+        ];
+
+        let hrefs = get_hrefs(matching_items).await;
+        assert_eq!(hrefs.len(), 2);
+        assert_eq!(hrefs[0].1, "5m title");
+        assert_eq!(hrefs[1].1, "10m title");
+    }
+    #[tokio::test]
+    #[ignore = "Sets race condition while changing current directory"]
+    async fn test_process_collection() {
+        use crate::linz_s3_filter::reporter::Reporter;
+        use std::env;
+        use std::sync::Arc;
+        let original_dir = env::current_dir().expect("Failed to get current directory");
+        let new_dir = Path::new("tests/data/");
+        env::set_current_dir(new_dir).expect("Failed to change directory");
+        let collection: Collection = stac::read("collection.json").unwrap();
+
+        let reporter = Arc::new(Reporter::new(1).await);
+
+        let result =
+            process_collection(collection, Some(172.93), Some(1.35), None, None, reporter).await;
+        assert!(result.is_some());
+        env::set_current_dir(original_dir).expect("Failed to change directory");
+    }
 }

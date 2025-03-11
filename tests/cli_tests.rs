@@ -27,6 +27,7 @@ async fn test_latlonsearch() {
 async fn test_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("-f")
         .arg("area")
         .arg("-45.0")
         .arg("167")

@@ -1,5 +1,12 @@
 # Changelog
 
+
+## [0.4.0] - 2025-03-13
+- add index flag.
+- add name exclusion filter
+- renamed flag by_collection_name to include_collection_name
+- renamed flage first to by_first_index
+
 ## [0.3.0] - 2025-02-24
 - add new args to automate picking if requried.
 - add name filter to dataset collection

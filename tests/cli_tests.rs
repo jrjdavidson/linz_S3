@@ -34,6 +34,7 @@ async fn test_areasearch() {
         .arg("1000.0")
         .arg("1000.0");
     // Simulate user input for the dataset index
+    cmd.write_stdin("0\n");
 
     let num_lines = 1; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
@@ -178,7 +179,7 @@ async fn test_valid_search_with_download() {
 async fn test_valid_search_with_condition() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("--first")
+        .arg("--by-first-index")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")

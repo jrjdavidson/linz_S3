@@ -21,7 +21,7 @@ async fn main() {
     let tile_list = search_catalog(
         args.bucket,
         spatial_filter_params,
-        args.by_collection_name,
+        args.include_collection_name,
         args.exclude_collection_name,
     )
     .await;
@@ -45,10 +45,15 @@ async fn main() {
                 }
                 _ => {
                     info!("{} datasets found.", tile_list.len());
-                    if args.first {
-                        info!("Automatically picked first dataset: {}", &tile_list[0].1);
+                    if args.by_first_index || args.by_index.is_some() {
+                        let index = args.by_index.unwrap_or(0); // if none then by_first_index is set
 
-                        process_tile_list(&tile_list, 0, args.download, cache_path_opt).await;
+                        info!(
+                            "Automatically picked dataset by index {} : {}",
+                            &index, &tile_list[index].1
+                        );
+
+                        process_tile_list(&tile_list, index, args.download, cache_path_opt).await;
                     } else if args.by_size {
                         let index_of_longest = tile_list
                             .iter()

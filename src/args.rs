@@ -6,7 +6,7 @@ use clap::{builder::ValueParser, command, Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "linz_s3_filter",
-    version = "0.3.0",
+    version = "0.4.0",
     author = "Jonathan Davidson <jrjddavidson@gmail.com>",
     about = "A tool to search for, filter, and download datasets from LINZ S3 buckets.",
     allow_negative_numbers = true
@@ -17,22 +17,25 @@ pub struct Cli {
     pub bucket: dataset::LinzBucketName,
     /// Search mode: "coordinate" for lat/lon range, "area" for search by approx height/width in m.
     #[command(subcommand)]
-    ///Filter spatially by coordinates or dimensions.
+    /// Filter spatially by coordinates or dimensions.
     pub spatial_filter: Option<SpatialFilter>,
     #[arg(short, long)]
     /// Download the tiles.
     pub download: bool,
-    #[arg(short, long,value_parser = folder_parser(), requires = "download")]
+    #[arg(short, long, value_parser = folder_parser(), requires = "download")]
     /// Cache directory for downloaded tiles.
     pub cache: Option<String>,
     /// Automatically select the first dataset found, usually the highest resolution dataset.
-    #[arg(short, group = "auto_select", long)]
-    pub first: bool,
+    #[arg(short = 'f', group = "auto_select", long)]
+    pub by_first_index: bool,
+    /// Automatically select the nth dataset found, usually the highest resolution dataset. Will default to the first if not specified.
+    #[arg(short = 'i', long, group = "auto_select")]
+    pub by_index: Option<usize>,
     /// Filter by collection name. Can be used multiple times, will match any of the provided names.
     #[arg(short = 'n', long)]
-    pub by_collection_name: Option<Vec<String>>,
+    pub include_collection_name: Option<Vec<String>>,
     #[arg(short = 'x', long)]
-    /// Exclude collections by name. Can be used multiple times, will exclude any of the provided names. Exclusion takes precedence over inclusion "by_collection_name" filter
+    /// Exclude collections by name. Can be used multiple times, will exclude any of the provided names. Exclusion takes precedence over inclusion "include_collection_name" filter.
     pub exclude_collection_name: Option<Vec<String>>,
     /// Automatically select the dataset with the most tiles. Useful for downloading the dataset with the highest resolution and cover.
     #[arg(short = 's', group = "auto_select", long)]
@@ -57,7 +60,7 @@ pub enum SpatialFilter {
         #[arg(value_parser = longitude_parser())]
         lon2_opt: Option<f64>,
     },
-    /// A Spatial filter to filter by pooint and search area.
+    /// A Spatial filter to filter by point and search area.
     #[command(allow_negative_numbers = true)]
     Area {
         /// Latitude of the center of filter area.
@@ -82,6 +85,7 @@ pub struct SpatialFilterParams {
     pub width_m_opt: Option<f64>,
     pub height_m_opt: Option<f64>,
 }
+
 impl SpatialFilterParams {
     pub fn new(command: SpatialFilter) -> Self {
         match command {
@@ -114,7 +118,9 @@ impl SpatialFilterParams {
         }
     }
 }
+
 use std::{path::Path, str::FromStr};
+
 fn latitude_parser() -> ValueParser {
     ValueParser::new(|s: &str| {
         let val = f64::from_str(s).map_err(|_| format!("Invalid latitude: {}", s))?;

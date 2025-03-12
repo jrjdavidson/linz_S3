@@ -224,6 +224,65 @@ async fn test_valid_search_with_conditon_and_mulitple_result() {
 }
 
 #[tokio::test]
+async fn test_valid_search_with_multiple_filters() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-n")
+        .arg("Southland LiDAR 1m DEM (2020-2024)")
+        .arg("-n")
+        .arg("Canterbury LiDAR 1m DSM (2016-2017)")
+        .arg("-s")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("160.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+    let num_lines = 2; // Specify the number of lines you want to match
+    let pred: predicates::str::RegexPredicate =
+        predicates::str::is_match(format!(r"(?m)^(.*Number of Tiles.*\n){{{}}}", num_lines))
+            .unwrap();
+
+    cmd.assert().stderr(pred).success();
+}
+#[tokio::test]
+async fn test_valid_search_with_exclusion_filters() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-x")
+        .arg("Hillshade")
+        .arg("-s")
+        .arg("coordinate")
+        .arg("-45")
+        .arg("167");
+    let num_lines = 1; // Specify the number of lines you want to match
+    let pred: predicates::str::RegexPredicate =
+        predicates::str::is_match(format!(r"(?m)^(.*Number of Tiles.*\n){{{}}}", num_lines))
+            .unwrap();
+    cmd.assert().stderr(pred).success();
+}
+#[tokio::test]
+async fn test_valid_search_with_exclusion_inclusion_filters() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-n")
+        .arg("Southland LiDAR 1m DEM (2020-2024)")
+        .arg("-n")
+        .arg("Canterbury LiDAR 1m DSM (2016-2017)")
+        .arg("-s")
+        .arg("-x")
+        .arg("DEM")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("160.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+    let num_lines = 1; // Specify the number of lines you want to match
+    let pred: predicates::str::RegexPredicate =
+        predicates::str::is_match(format!(r"(?m)^(.*Number of Tiles.*\n){{{}}}", num_lines))
+            .unwrap();
+    cmd.assert().stderr(pred).success();
+}
+#[tokio::test]
 async fn test_valid_search_with_download_and_cache() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
@@ -269,7 +328,8 @@ async fn test_valid_search_with_download_and_cache() {
     // Simulate user input for the dataset index
     cmd.write_stdin("0\n");
     let num_lines = 2; // Specify the number of lines you want to match
-    let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
+    let pred: predicates::str::RegexPredicate =
+        predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
     cmd.assert().stdout(pred).success();
     let files: Vec<_> = fs::read_dir(temp_path)
         .unwrap()

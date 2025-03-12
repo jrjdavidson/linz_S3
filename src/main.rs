@@ -18,8 +18,13 @@ async fn main() {
         None
     };
     let cache_path_opt: Option<PathBuf> = args.cache.map(|cache| Path::new(&cache).to_owned());
-    let tile_list =
-        search_catalog(args.bucket, spatial_filter_params, args.by_collection_name).await;
+    let tile_list = search_catalog(
+        args.bucket,
+        spatial_filter_params,
+        args.by_collection_name,
+        args.exclude_collection_name,
+    )
+    .await;
     match tile_list {
         Ok(tile_list) => {
             for (index, (tile_paths, description)) in tile_list.iter().enumerate() {

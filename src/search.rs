@@ -9,9 +9,13 @@ pub async fn search_catalog(
     bucket: dataset::LinzBucketName,
     spatial_params: Option<SpatialFilterParams>,
     collection_name_filter_opt: Option<Vec<String>>,
+    collection_exclusion_opt: Option<Vec<String>>,
 ) -> Result<Vec<(Vec<String>, String)>, MyError> {
     let mut linz_bucket = LinzBucket::initialise_catalog(bucket).await;
-    linz_bucket.set_collection_filter(collection_name_filter_opt.as_deref(), None);
+    linz_bucket.set_collection_filter(
+        collection_name_filter_opt.as_deref(),
+        collection_exclusion_opt.as_deref(),
+    );
     if let Some(SpatialFilterParams {
         lat1: lat,
         lon1: lon,

@@ -31,6 +31,9 @@ pub struct Cli {
     /// Filter by collection name. Can be used multiple times, will match any of the provided names.
     #[arg(short = 'n', long)]
     pub by_collection_name: Option<Vec<String>>,
+    #[arg(short = 'x', long)]
+    /// Exclude collections by name. Can be used multiple times, will exclude any of the provided names. Exclusion takes precedence over inclusion "by_collection_name" filter
+    pub exclude_collection_name: Option<Vec<String>>,
     /// Automatically select the dataset with the most tiles. Useful for downloading the dataset with the highest resolution and cover.
     #[arg(short = 's', group = "auto_select", long)]
     pub by_size: bool,

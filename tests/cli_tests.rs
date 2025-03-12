@@ -191,6 +191,56 @@ async fn test_valid_search_with_condition() {
     cmd.assert().stdout(pred).success();
 }
 #[tokio::test]
+async fn test_valid_search_with_index() {
+    // could improve check
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("-n")
+        .arg("Southland LiDAR 1m")
+        .arg("--by-index")
+        .arg("1") // Specify the index you want to test
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("160.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+    let num_lines = 300; // Specify the number of lines you want to match
+    let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
+
+    cmd.assert().stdout(pred).success();
+}
+#[tokio::test]
+async fn test_valid_search_with_missing_index() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("--by-index") // No specific index provided, should default to 0
+        .arg("45.5")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("170.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+
+    cmd.assert()
+        .stderr(predicates::str::contains("invalid value"))
+        .failure();
+}
+#[tokio::test]
+async fn test_invalid_search_with_out_of_bounds_index() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("--by-index")
+        .arg(usize::MAX.to_string()) // Specify an out-of-bounds index
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("170.8860")
+        .arg("-45.2865")
+        .arg("175.7762");
+    let pred = predicates::str::contains("is out of bounds. There are only"); // Adjust the expected error message
+
+    cmd.assert().stderr(pred).success();
+}
+#[tokio::test]
 async fn test_valid_search_with_conditon_and_one_result() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")

@@ -48,12 +48,17 @@ async fn main() {
                     if args.by_first_index || args.by_index.is_some() {
                         let index = args.by_index.unwrap_or(0); // if none then by_first_index is set
 
-                        info!(
-                            "Automatically picked dataset by index {} : {}",
-                            &index, &tile_list[index].1
-                        );
+                        if index < tile_list.len() {
+                            info!(
+                                "Automatically picked dataset by index {}: {}",
+                                index, &tile_list[index].1
+                            );
 
-                        process_tile_list(&tile_list, index, args.download, cache_path_opt).await;
+                            process_tile_list(&tile_list, index, args.download, cache_path_opt)
+                                .await;
+                        } else {
+                            eprintln!("Error: Index {} is out of bounds. There are only {} datasets available.", index, tile_list.len());
+                        }
                     } else if args.by_size {
                         let index_of_longest = tile_list
                             .iter()

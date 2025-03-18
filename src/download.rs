@@ -24,7 +24,7 @@ pub async fn process_tile_list(
         if download {
             let url = tile_url.to_string();
             let progress_bar_clone = progress_bar.clone();
-            let subfolder = tile_list[index].1.clone();
+            let subfolder = tile_list[index].1.clone().replace("/", "_");
             let output_folder = cache_opt
                 .clone()
                 .unwrap_or_else(|| PathBuf::from("."))

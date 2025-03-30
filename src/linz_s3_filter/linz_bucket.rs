@@ -49,7 +49,10 @@ impl LinzBucket {
                 }
             })
             .collect();
-        let (tx, mut rx) = mpsc::channel(100);
+
+        let num_cpus = num_cpus::get();
+        let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
+        let (tx, mut rx) = mpsc::channel(num_channels);
 
         for url in urls {
             let tx = tx.clone();

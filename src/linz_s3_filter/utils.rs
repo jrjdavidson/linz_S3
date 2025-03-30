@@ -1,6 +1,7 @@
 use crate::linz_s3_filter::dataset::MatchingItems;
 use crate::linz_s3_filter::reporter::Reporter;
 use log::{info, warn};
+use num_cpus;
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
@@ -113,10 +114,11 @@ async fn add_collection_with_spatial_filter(
     reporter: Arc<Reporter>,
 ) -> Option<MatchingItems> {
     let mut matching_items = vec![];
-    let (tx, mut rx) = mpsc::channel(100);
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-
+    let num_cpus = num_cpus::get();
+    let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
+    let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;
     for url in urls {
         let tx = tx.clone();
@@ -172,10 +174,11 @@ pub async fn add_collection_without_filters(
     reporter: Arc<Reporter>,
 ) -> Option<MatchingItems> {
     let mut matching_items = vec![];
-    let (tx, mut rx) = mpsc::channel(100);
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-
+    let num_cpus = num_cpus::get();
+    let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
+    let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;
     for url in urls {
         let tx = tx.clone();

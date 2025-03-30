@@ -413,7 +413,7 @@ async fn test_valid_search_with_download_and_cache() {
 
     cmd.assert()
         .stdout(pred)
-        .stderr(predicates::str::contains("File already exists"))
+        .stderr(predicates::str::contains("files found in cache, 0 files"))
         .success();
     let file_number = 2;
     check_folder_content(&files, file_number);

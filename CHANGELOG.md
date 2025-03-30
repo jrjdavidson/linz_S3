@@ -1,5 +1,6 @@
 # Changelog
-
+## [0.4.1] - 2025-03-31
+- limit thread based on CPU
 
 ## [0.4.0] - 2025-03-13
 - add index flag.

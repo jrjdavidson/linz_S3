@@ -1,6 +1,9 @@
 # Changelog
+## [0.4.2] - 2025-03-31
+- filter collections by location if area is set
+
 ## [0.4.1] - 2025-03-31
-- limit thread based on CPU
+- limit threads based on CPU
 
 ## [0.4.0] - 2025-03-13
 - add index flag.

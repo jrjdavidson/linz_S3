@@ -133,13 +133,12 @@ async fn add_collection_with_spatial_filter(
                 Ok(item) => {
                     reporter.report_finished_url().await;
 
-                    let bounding_box = item.bbox.unwrap();
-
-                    if bounding_box.ymin() <= lat_max
-                        && bounding_box.ymax() >= lat_min
-                        && bounding_box.xmin() <= lon_max
-                        && bounding_box.xmax() >= lon_min
-                    {
+                    if item.bbox.iter().any(|bbox| {
+                        bbox.ymin() <= lat_max
+                            && bbox.ymax() >= lat_min
+                            && bbox.xmin() <= lon_max
+                            && bbox.xmax() >= lon_min
+                    }) {
                         tx.send(Some(item)).await.unwrap();
                     }
                 }

@@ -1,4 +1,4 @@
-use linz_s3::linz_s3_filter::{dataset, linz_bucket::LinzBucket};
+use linz_s3::linz_s3_filter::{dataset, linz_bucket::LinzBucket, utils};
 use std::sync::Once;
 
 static INIT: Once = Once::new();
@@ -16,7 +16,10 @@ async fn test_get_tiles_from_lat_lon_empty() {
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat = 40.9006;
     let lon = 174.8860;
-    let tiles = linz_bucket.get_tiles_from_lat_lon(lat, lon).await;
+    let tiles = linz_bucket
+        .unwrap()
+        .get_tiles(Some(lat), Some(lon), None, None)
+        .await;
     assert!(tiles.is_empty());
 }
 #[tokio::test]
@@ -27,7 +30,10 @@ async fn test_get_tiles_from_lat_lon() {
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat = -45.0;
     let lon = 167.0;
-    let tiles = linz_bucket.get_tiles_from_lat_lon(lat, lon).await;
+    let tiles = linz_bucket
+        .unwrap()
+        .get_tiles(Some(lat), Some(lon), None, None)
+        .await;
     assert!(!tiles.is_empty());
 }
 
@@ -42,7 +48,8 @@ async fn test_get_tiles_from_lat_lon_range() {
     let lat2 = -45.2865;
     let lon2 = 175.7762;
     let tiles = linz_bucket
-        .get_tiles_from_lat_lon_range(lat1, lon1, lat2, lon2)
+        .unwrap()
+        .get_tiles(Some(lat1), Some(lon1), Some(lat2), Some(lon2))
         .await;
     assert!(!tiles.is_empty());
 }
@@ -57,8 +64,11 @@ async fn test_get_tiles_from_point_and_dimension() {
     let lon = 167.0;
     let width_m = 100000.0; // 100 km
     let height_m = 100000.0; // 100 km
+    let (lat1, lon1, lat2, lon2) =
+        utils::get_coordinate_from_dimension(lat, lon, width_m, height_m);
     let tiles = linz_bucket
-        .get_tiles_from_point_and_dimension(lat, lon, width_m, height_m)
+        .unwrap()
+        .get_tiles(Some(lat1), Some(lon1), Some(lat2), Some(lon2))
         .await;
     assert!(!tiles.is_empty());
 }
@@ -67,14 +77,16 @@ async fn test_get_tiles_from_point_and_dimension_filter() {
     init_logger();
 
     let dataset = dataset::LinzBucketName::Elevation;
-    let mut linz_bucket = LinzBucket::initialise_catalog(dataset).await;
-    linz_bucket.set_collection_filter(Some(&["Southland".to_string()]), None);
+    let mut linz_bucket = LinzBucket::initialise_catalog(dataset).await.unwrap();
+    linz_bucket.set_collection_filter(Some(&["Southland".to_string()]), None, None);
     let lat = -45.0;
     let lon = 167.0;
     let width_m = 100000.0; // 100 km
     let height_m = 100000.0; // 100 km
+    let (lat1, lon1, lat2, lon2) =
+        utils::get_coordinate_from_dimension(lat, lon, width_m, height_m);
     let tiles = linz_bucket
-        .get_tiles_from_point_and_dimension(lat, lon, width_m, height_m)
+        .get_tiles(Some(lat1), Some(lon1), Some(lat2), Some(lon2))
         .await;
     assert!(!tiles.is_empty());
 }

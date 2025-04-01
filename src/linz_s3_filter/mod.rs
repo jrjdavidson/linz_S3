@@ -1,7 +1,7 @@
 pub mod dataset;
 pub mod linz_bucket;
 mod reporter;
-mod utils;
+pub mod utils;
 #[cfg(test)]
 mod tests {
     use super::*;

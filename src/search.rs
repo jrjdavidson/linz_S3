@@ -1,5 +1,5 @@
 use crate::error::MyError;
-use crate::linz_s3_filter::{dataset, linz_bucket::LinzBucket};
+use crate::linz_s3_filter::{dataset, linz_bucket::LinzBucket, utils};
 
 use crate::args::SpatialFilterParams;
 
@@ -11,11 +11,8 @@ pub async fn search_catalog(
     collection_name_filter_opt: Option<Vec<String>>,
     collection_exclusion_opt: Option<Vec<String>>,
 ) -> Result<Vec<(Vec<String>, String)>, MyError> {
-    let mut linz_bucket = LinzBucket::initialise_catalog(bucket).await;
-    linz_bucket.set_collection_filter(
-        collection_name_filter_opt.as_deref(),
-        collection_exclusion_opt.as_deref(),
-    );
+    let mut linz_bucket = LinzBucket::initialise_catalog(bucket).await?;
+
     if let Some(SpatialFilterParams {
         lat1: lat,
         lon1: lon,
@@ -31,22 +28,33 @@ pub async fn search_catalog(
             return Err(MyError::DimensionAndCoordinateRange);
         }
 
-        let tiles = if let Some(width_m) = width_m_opt {
+        let (lat1_opt, lon1_opt, lat2_opt, lon2_opt) = if let Some(width_m) = width_m_opt {
             let height_m = height_m_opt.unwrap_or(width_m);
-            linz_bucket
-                .get_tiles_from_point_and_dimension(lat, lon, width_m, height_m)
-                .await
-        } else if let (Some(lat2), Some(lon2)) = (lat2_opt, lon2_opt) {
-            linz_bucket
-                .get_tiles_from_lat_lon_range(lat, lon, lat2, lon2)
-                .await
+
+            let (lat1, lon1, lat2, lon2) =
+                utils::get_coordinate_from_dimension(lat, lon, width_m, height_m);
+            (Some(lat1), Some(lon1), Some(lat2), Some(lon2))
         } else {
-            linz_bucket.get_tiles_from_lat_lon(lat, lon).await
+            (Some(lat), Some(lon), lat2_opt, lon2_opt)
         };
+
+        linz_bucket.set_collection_filter(
+            collection_name_filter_opt.as_deref(),
+            collection_exclusion_opt.as_deref(),
+            Some((lat1_opt.unwrap(), lon1_opt.unwrap(), lat2_opt, lon2_opt)),
+        );
+        let tiles = linz_bucket
+            .get_tiles(lat1_opt, lon1_opt, lat2_opt, lon2_opt)
+            .await;
 
         Ok(tiles)
         // Use lat1, lon1, lat2_opt, lon2_opt, width_m_opt, height_m_opt here
     } else if collection_name_filter_opt.is_some() {
+        linz_bucket.set_collection_filter(
+            collection_name_filter_opt.as_deref(),
+            collection_exclusion_opt.as_deref(),
+            None,
+        );
         let tiles = linz_bucket.get_all_tiles().await;
         Ok(tiles)
     } else {

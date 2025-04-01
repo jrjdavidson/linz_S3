@@ -6,4 +6,6 @@ pub enum MyError {
     NoFilterProvided,
     #[error("Cannot specify both dimensions (height_m, width_m) and a coordinate range. Please choose one.")]
     DimensionAndCoordinateRange,
+    #[error("STAC error: {0}")]
+    StacError(#[from] stac::Error),
 }

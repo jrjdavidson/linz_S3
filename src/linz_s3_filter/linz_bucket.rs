@@ -14,19 +14,19 @@ pub struct LinzBucket {
 }
 
 impl LinzBucket {
-    pub async fn initialise_catalog(dataset: LinzBucketName) -> Self {
+    pub async fn initialise_catalog(dataset: LinzBucketName) -> Result<Self, stac::Error> {
         info!("Initialising Catalog...");
         let catalog_url = format!(
             "https://{}.s3.ap-southeast-2.amazonaws.com/catalog.json",
             dataset.as_str()
         );
 
-        let mut catalog = stac::io::get_opts::<Catalog, _, _, _>(
+        let mut catalog: Catalog = stac::io::get_opts(
             catalog_url,
             [("skip_signature", "true"), ("region", "ap-southeast-2")],
         )
-        .await
-        .unwrap();
+        .await?;
+
         info!("ID: {}", catalog.id);
         info!("Title: {}", catalog.title.as_deref().unwrap_or("N/A"));
         info!("Description: {}", catalog.description);
@@ -55,14 +55,14 @@ impl LinzBucket {
         let (tx, mut rx) = mpsc::channel(num_channels);
 
         for url in urls {
-            let tx = tx.clone();
+            let tx: mpsc::Sender<Option<Collection>> = tx.clone();
             tokio::spawn(async move {
-                match stac::io::get_opts::<stac::Collection, _, _, _>(
+                let collection_result: Result<Collection, stac::Error> = stac::io::get_opts(
                     url,
                     [("skip_signature", "true"), ("region", "ap-southeast-2")],
                 )
-                .await
-                {
+                .await;
+                match collection_result {
                     Ok(mut collection) => {
                         collection.make_links_absolute().unwrap();
                         tx.send(Some(collection)).await.unwrap();
@@ -92,7 +92,7 @@ impl LinzBucket {
             reporter: Arc::new(Reporter::new(collections_total).await),
         };
         bucket.start_reporting();
-        bucket
+        Ok(bucket)
     }
 
     fn start_reporting(&self) {
@@ -109,38 +109,7 @@ impl LinzBucket {
         });
     }
 
-    pub async fn get_tiles_from_lat_lon(&self, lat: f64, lon: f64) -> Vec<(Vec<String>, String)> {
-        self.get_tiles(Some(lat), Some(lon), None, None).await
-    }
-
-    pub async fn get_tiles_from_lat_lon_range(
-        &self,
-        lat1: f64,
-        lon1: f64,
-        lat2: f64,
-        lon2: f64,
-    ) -> Vec<(Vec<String>, String)> {
-        self.get_tiles(Some(lat1), Some(lon1), Some(lat2), Some(lon2))
-            .await
-    }
-
-    pub async fn get_tiles_from_point_and_dimension(
-        &self,
-        lat: f64,
-        lon: f64,
-        width_m: f64,
-        height_m: f64,
-    ) -> Vec<(Vec<String>, String)> {
-        // Convert meters to degrees
-        let (lat1, lon1, lat2, lon2) = crate::linz_s3_filter::utils::get_coordinate_from_dimension(
-            lat, lon, width_m, height_m,
-        );
-
-        self.get_tiles(Some(lat1), Some(lon1), Some(lat2), Some(lon2))
-            .await
-    }
-
-    async fn get_tiles(
+    pub async fn get_tiles(
         &self,
         lat1_opt: Option<f64>,
         lon1_opt: Option<f64>,
@@ -186,6 +155,7 @@ impl LinzBucket {
         &mut self,
         collection_name_filters: Option<&[String]>,
         exclusion_filters: Option<&[String]>,
+        extent: Option<(f64, f64, Option<f64>, Option<f64>)>,
     ) {
         self.collections.retain(|collection| {
             let include = collection_name_filters.map_or(true, |filters| {
@@ -195,13 +165,24 @@ impl LinzBucket {
                             || collection.title.as_deref().unwrap_or("").contains(filter)
                     })
             });
+
             let exclude = exclusion_filters.is_some_and(|filters| {
                 filters.iter().any(|filter| {
                     collection.id.contains(filter)
                         || collection.title.as_deref().unwrap_or("").contains(filter)
                 })
             });
-            include && !exclude
+            let within_extent =
+                extent.map_or(true, |(min_lat, min_lon, max_lat_opt, max_lon_opt)| {
+                    collection.extent.spatial.bbox.iter().any(|bbox| {
+                        bbox.xmin() <= max_lon_opt.unwrap_or(min_lon)
+                            && bbox.xmax() >= min_lon
+                            && bbox.ymin() <= max_lat_opt.unwrap_or(min_lat)
+                            && bbox.ymax() >= min_lat
+                    })
+                });
+
+            include && !exclude && within_extent
         });
     }
 }

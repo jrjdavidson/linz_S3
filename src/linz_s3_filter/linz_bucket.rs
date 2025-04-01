@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, Semaphore};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
-    pub reporter: Arc<Reporter>,
+    pub reporter: Reporter, // Use Mutex for interior mutability
 }
 
 impl LinzBucket {
@@ -85,18 +85,19 @@ impl LinzBucket {
         }
 
         let collections_total = collections.len();
-        info!("Number of Collections in catalog: {}", collections_total);
+        info!(
+            "Total number of Collections in catalog: {}",
+            collections_total
+        );
 
         let bucket = LinzBucket {
             collections,
-            reporter: Arc::new(Reporter::new(collections_total).await),
+            reporter: Reporter::new(collections_total).await,
         };
-        bucket.start_reporting();
         Ok(bucket)
     }
 
-    fn start_reporting(&self) {
-        let reporter = Arc::clone(&self.reporter);
+    fn start_reporting(&self, reporter: Arc<Reporter>) {
         thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async move {
@@ -110,21 +111,24 @@ impl LinzBucket {
     }
 
     pub async fn get_tiles(
-        &self,
+        &mut self,
         lat1_opt: Option<f64>,
         lon1_opt: Option<f64>,
         lat2_opt: Option<f64>,
         lon2_opt: Option<f64>,
     ) -> Vec<(Vec<String>, String)> {
-        self.reporter.reset_all().await;
+        self.reporter.reset_all(self.collections.len()).await;
+        let reporter = Arc::new(self.reporter.clone());
 
-        let semaphore = Arc::new(Semaphore::new(3)); // Limit to 10 concurrent threads
+        self.start_reporting(Arc::clone(&reporter));
+
+        let semaphore = Arc::new(Semaphore::new(3)); // Limit concurrent threads
         let futures: Vec<_> = self
             .collections
             .iter()
             .map(|collection| {
                 let collection = collection.clone();
-                let reporter = Arc::clone(&self.reporter);
+                let reporter = Arc::clone(&reporter);
                 let semaphore = Arc::clone(&semaphore);
 
                 tokio::spawn(async move {
@@ -147,7 +151,7 @@ impl LinzBucket {
         get_hrefs(results).await
     }
 
-    pub async fn get_all_tiles(&self) -> Vec<(Vec<String>, String)> {
+    pub async fn get_all_tiles(&mut self) -> Vec<(Vec<String>, String)> {
         self.get_tiles(None, None, None, None).await
     }
 

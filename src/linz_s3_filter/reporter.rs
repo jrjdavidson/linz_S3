@@ -2,21 +2,21 @@ use log::info;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
+#[derive(Clone)]
 pub struct Reporter {
-    urls_read: Mutex<u64>,
-    urls_total: Mutex<u64>,
-    collections_read: Mutex<u64>,
-    collections_total: usize,
+    urls_read: Arc<Mutex<u64>>,
+    urls_total: Arc<Mutex<u64>>,
+    collections_read: Arc<Mutex<u64>>,
+    pub collections_total: usize,
     pub stop_flag: Arc<AtomicBool>,
 }
 
 impl Reporter {
     pub async fn new(collections_total: usize) -> Self {
         Reporter {
-            urls_read: Mutex::new(0),
-            urls_total: Mutex::new(0),
-            collections_read: Mutex::new(0),
+            urls_read: Arc::new(Mutex::new(0)),
+            urls_total: Arc::new(Mutex::new(0)),
+            collections_read: Arc::new(Mutex::new(0)),
             collections_total,
             stop_flag: Arc::new(AtomicBool::new(false)),
         }
@@ -60,10 +60,12 @@ impl Reporter {
         let mut urls_total = self.urls_total.lock().await;
         *urls_total = 0;
     }
-    pub async fn reset_all(&self) {
+    pub async fn reset_all(&mut self, collections_total: usize) {
+        self.collections_total = collections_total;
         self.reset_collection_read().await;
         self.reset_urls_read().await;
         self.reset_urls_total().await;
+        info!("Collections to be read: {}", self.collections_total,);
     }
 }
 
@@ -139,13 +141,14 @@ mod tests {
     #[tokio::test]
     async fn test_reset_all() {
         let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
+        let mut reporter = Reporter::new(collections_total).await;
         reporter.add_urls(10).await;
         reporter.report_finished_url().await;
         reporter.report_finished_collection().await;
-        reporter.reset_all().await;
+        reporter.reset_all(3).await;
         assert_eq!(*reporter.urls_read.lock().await, 0);
         assert_eq!(*reporter.urls_total.lock().await, 0);
         assert_eq!(*reporter.collections_read.lock().await, 0);
+        assert_eq!(reporter.collections_total, 3);
     }
 }

@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, Semaphore};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
+    pub filtered_collections: Vec<Collection>,
     pub reporter: Reporter, // Use Mutex for interior mutability
 }
 
@@ -92,6 +93,7 @@ impl LinzBucket {
 
         let bucket = LinzBucket {
             collections,
+            filtered_collections: Vec::new(),
             reporter: Reporter::new(collections_total).await,
         };
         Ok(bucket)
@@ -117,14 +119,16 @@ impl LinzBucket {
         lat2_opt: Option<f64>,
         lon2_opt: Option<f64>,
     ) -> Vec<(Vec<String>, String)> {
-        self.reporter.reset_all(self.collections.len()).await;
+        self.reporter
+            .reset_all(self.filtered_collections.len())
+            .await;
         let reporter = Arc::new(self.reporter.clone());
 
         self.start_reporting(Arc::clone(&reporter));
 
         let semaphore = Arc::new(Semaphore::new(3)); // Limit concurrent threads
         let futures: Vec<_> = self
-            .collections
+            .filtered_collections
             .iter()
             .map(|collection| {
                 let collection = collection.clone();
@@ -161,32 +165,38 @@ impl LinzBucket {
         exclusion_filters: Option<&[String]>,
         extent: Option<(f64, f64, Option<f64>, Option<f64>)>,
     ) {
-        self.collections.retain(|collection| {
-            let include = collection_name_filters.map_or(true, |filters| {
-                filters.is_empty()
-                    || filters.iter().any(|filter| {
+        self.filtered_collections = self
+            .collections
+            .iter()
+            .filter(|collection| {
+                let include = collection_name_filters.map_or(true, |filters| {
+                    filters.is_empty()
+                        || filters.iter().any(|filter| {
+                            collection.id.contains(filter)
+                                || collection.title.as_deref().unwrap_or("").contains(filter)
+                        })
+                });
+
+                let exclude = exclusion_filters.is_some_and(|filters| {
+                    filters.iter().any(|filter| {
                         collection.id.contains(filter)
                             || collection.title.as_deref().unwrap_or("").contains(filter)
                     })
-            });
-
-            let exclude = exclusion_filters.is_some_and(|filters| {
-                filters.iter().any(|filter| {
-                    collection.id.contains(filter)
-                        || collection.title.as_deref().unwrap_or("").contains(filter)
-                })
-            });
-            let within_extent =
-                extent.map_or(true, |(min_lat, min_lon, max_lat_opt, max_lon_opt)| {
-                    collection.extent.spatial.bbox.iter().any(|bbox| {
-                        bbox.xmin() <= max_lon_opt.unwrap_or(min_lon)
-                            && bbox.xmax() >= min_lon
-                            && bbox.ymin() <= max_lat_opt.unwrap_or(min_lat)
-                            && bbox.ymax() >= min_lat
-                    })
                 });
 
-            include && !exclude && within_extent
-        });
+                let within_extent =
+                    extent.map_or(true, |(min_lat, min_lon, max_lat_opt, max_lon_opt)| {
+                        collection.extent.spatial.bbox.iter().any(|bbox| {
+                            bbox.xmin() <= max_lon_opt.unwrap_or(min_lon)
+                                && bbox.xmax() >= min_lon
+                                && bbox.ymin() <= max_lat_opt.unwrap_or(min_lat)
+                                && bbox.ymax() >= min_lat
+                        })
+                    });
+
+                include && !exclude && within_extent
+            })
+            .cloned()
+            .collect();
     }
 }

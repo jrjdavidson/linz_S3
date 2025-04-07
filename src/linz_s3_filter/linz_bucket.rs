@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, Semaphore};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
-    pub filtered_collections: Vec<Collection>,
+    pub filtered_collections: Option<Vec<Collection>>,
     pub reporter: Reporter, // Use Mutex for interior mutability
 }
 
@@ -93,7 +93,7 @@ impl LinzBucket {
 
         let bucket = LinzBucket {
             collections,
-            filtered_collections: Vec::new(),
+            filtered_collections: None,
             reporter: Reporter::new(collections_total).await,
         };
         Ok(bucket)
@@ -119,16 +119,17 @@ impl LinzBucket {
         lat2_opt: Option<f64>,
         lon2_opt: Option<f64>,
     ) -> Vec<(Vec<String>, String)> {
-        self.reporter
-            .reset_all(self.filtered_collections.len())
-            .await;
+        let filtered_collections = self
+            .filtered_collections
+            .as_ref()
+            .unwrap_or(&self.collections);
+        self.reporter.reset_all(filtered_collections.len()).await;
         let reporter = Arc::new(self.reporter.clone());
 
         self.start_reporting(Arc::clone(&reporter));
 
         let semaphore = Arc::new(Semaphore::new(3)); // Limit concurrent threads
-        let futures: Vec<_> = self
-            .filtered_collections
+        let futures: Vec<_> = filtered_collections
             .iter()
             .map(|collection| {
                 let collection = collection.clone();
@@ -165,7 +166,7 @@ impl LinzBucket {
         exclusion_filters: Option<&[String]>,
         extent: Option<(f64, f64, Option<f64>, Option<f64>)>,
     ) {
-        self.filtered_collections = self
+        let filtered_collections: Vec<_> = self
             .collections
             .iter()
             .filter(|collection| {
@@ -198,5 +199,6 @@ impl LinzBucket {
             })
             .cloned()
             .collect();
+        self.filtered_collections = Some(filtered_collections);
     }
 }

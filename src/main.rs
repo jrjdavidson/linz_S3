@@ -63,6 +63,7 @@ async fn main() {
                         let index_of_longest = tile_list
                             .iter()
                             .enumerate()
+                            .rev()
                             .max_by_key(|(_, (vec, _))| vec.len())
                             .map(|(index, _)| index)
                             .unwrap();

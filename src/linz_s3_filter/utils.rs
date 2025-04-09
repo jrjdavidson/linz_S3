@@ -1,6 +1,6 @@
 use crate::linz_s3_filter::dataset::MatchingItems;
 use crate::linz_s3_filter::reporter::Reporter;
-use log::{info, warn};
+use log::{error, info, warn};
 use num_cpus;
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
@@ -145,7 +145,7 @@ async fn add_collection_with_spatial_filter(
                 Err(e) => {
                     reporter.report_finished_url().await;
 
-                    info!("Error fetching child item: {}", e);
+                    error!("Error fetching child item: {}", e);
                     tx.send(None).await.unwrap();
                 }
             }

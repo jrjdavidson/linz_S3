@@ -1,4 +1,9 @@
+
 # Changelog
+## [0.4.3] - 2025-04-09
+- pick first entry if auto-selecting by number of tiles and resolution is identical.
+- work towards allowing serach to be run multiple times.
+
 ## [0.4.2] - 2025-03-31
 - filter collections by location if area is set
 

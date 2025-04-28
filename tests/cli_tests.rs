@@ -123,6 +123,25 @@ async fn test_empty_search_results() {
         .stderr(predicates::str::contains("No datasets found"))
         .stdout(pred);
 }
+
+#[tokio::test]
+async fn test_all_datasets() {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("--by-all")
+        // make test more resilient by filtering by name
+        .arg("--include-collection-name")
+        .arg("New Zealand DEM Hillshade")
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("170.8860");
+
+    // Simulate user input for the dataset index
+    let num_lines = 2; // Specify the number of lines you want to match
+    let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
+    cmd.assert().success().stdout(pred);
+}
+
 #[tokio::test]
 async fn test_invalid_args() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();

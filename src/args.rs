@@ -31,6 +31,9 @@ pub struct Cli {
     /// Automatically select the nth dataset found, usually the highest resolution dataset. Will default to the first if not specified.
     #[arg(short = 'i', long, group = "auto_select")]
     pub by_index: Option<usize>,
+    /// Automatically select all datasets. Useful for downloading all datasets that meet the search criteria.
+    #[arg(short = 'a', long, group = "auto_select")]
+    pub by_all: bool,
     /// Filter by collection name. Can be used multiple times, will match any of the provided names.
     #[arg(short = 'n', long)]
     pub include_collection_name: Option<Vec<String>>,

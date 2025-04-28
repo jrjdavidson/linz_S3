@@ -12,7 +12,7 @@ pub async fn process_tile_list(
     tile_list: &[(Vec<String>, String)],
     index: usize,
     download: bool,
-    cache_opt: Option<PathBuf>,
+    cache_opt: &Option<PathBuf>,
 ) {
     let mut tasks = vec![];
     let mut cache_count = 0;

@@ -17,7 +17,7 @@ async fn main() {
     } else {
         None
     };
-    let cache_path_opt: Option<PathBuf> = args.cache.map(|cache| Path::new(&cache).to_owned());
+    let cache_path_opt: &Option<PathBuf> = &args.cache.map(|cache| Path::new(&cache).to_owned());
     let tile_list = search_catalog(
         args.bucket,
         spatial_filter_params,
@@ -79,6 +79,12 @@ async fn main() {
                             cache_path_opt,
                         )
                         .await;
+                    } else if args.by_all {
+                        info!("Automatically picked all datasets.");
+                        for (index, _) in tile_list.iter().enumerate() {
+                            process_tile_list(&tile_list, index, args.download, cache_path_opt)
+                                .await;
+                        }
                     } else {
                         loop {
                             info!(

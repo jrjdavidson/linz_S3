@@ -59,11 +59,13 @@ pub async fn process_tile_list(
     for task in tasks {
         task.await.unwrap();
     }
-    progress_bar.finish_with_message("Download complete");
-    info!(
-        "{} files found in cache, {} files downloaded",
-        cache_count, download_count
-    );
+    progress_bar.finish_with_message("Process complete");
+    if download {
+        info!(
+            "{} files found in cache, {} files downloaded",
+            cache_count, download_count
+        );
+    }
 }
 
 async fn download_file(url: &str, progress_bar: &ProgressBar, output_file: PathBuf) {

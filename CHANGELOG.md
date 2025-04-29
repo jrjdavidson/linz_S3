@@ -1,5 +1,8 @@
 
 # Changelog
+## [0.4.4] - 2025-04-09
+- add --by_all option to select all data.
+
 ## [0.4.3] - 2025-04-09
 - pick first entry if auto-selecting by number of tiles and resolution is identical.
 - work towards allowing serach to be run multiple times.

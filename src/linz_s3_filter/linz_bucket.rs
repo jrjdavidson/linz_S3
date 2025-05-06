@@ -5,8 +5,8 @@ use futures::future::join_all;
 use log::info;
 use stac::{Catalog, Collection, Href, Links};
 use std::sync::{atomic::Ordering, Arc};
-use std::{thread, time::Duration};
 use tokio::sync::{mpsc, Semaphore};
+use tokio::time::{self, Duration};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
@@ -100,15 +100,12 @@ impl LinzBucket {
     }
 
     fn start_reporting(&self, reporter: Arc<Reporter>) {
-        thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async move {
-                let mut interval = tokio::time::interval(Duration::from_secs(1));
-                while !reporter.stop_flag.load(Ordering::Relaxed) {
-                    interval.tick().await;
-                    reporter.report().await;
-                }
-            });
+        tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(1));
+            while !reporter.stop_flag.load(Ordering::Relaxed) {
+                interval.tick().await;
+                reporter.report().await;
+            }
         });
     }
 

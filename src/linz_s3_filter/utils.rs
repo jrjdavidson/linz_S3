@@ -1,7 +1,6 @@
 use crate::linz_s3_filter::dataset::MatchingItems;
 use crate::linz_s3_filter::reporter::Reporter;
 use log::{error, info, warn};
-use num_cpus;
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
@@ -168,6 +167,7 @@ async fn add_collection_with_spatial_filter(
     }
     None
 }
+
 pub async fn add_collection_without_filters(
     collection: Collection,
     reporter: Arc<Reporter>,

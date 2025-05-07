@@ -8,6 +8,8 @@ use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::{mpsc, Semaphore};
 use tokio::time::{self, Duration};
 
+use crate::linz_s3_filter::bucket_config;
+
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
     pub filtered_collections: Option<Vec<Collection>>,
@@ -22,11 +24,9 @@ impl LinzBucket {
             dataset.as_str()
         );
 
-        let mut catalog: Catalog = stac::io::get_opts(
-            catalog_url,
-            [("skip_signature", "true"), ("region", "ap-southeast-2")],
-        )
-        .await?;
+        let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+
+        let mut catalog: Catalog = stac::io::get_opts(catalog_url, options).await?;
 
         info!("ID: {}", catalog.id);
         info!("Title: {}", catalog.title.as_deref().unwrap_or("N/A"));
@@ -58,11 +58,10 @@ impl LinzBucket {
         for url in urls {
             let tx: mpsc::Sender<Option<Collection>> = tx.clone();
             tokio::spawn(async move {
-                let collection_result: Result<Collection, stac::Error> = stac::io::get_opts(
-                    url,
-                    [("skip_signature", "true"), ("region", "ap-southeast-2")],
-                )
-                .await;
+                let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+
+                let collection_result: Result<Collection, stac::Error> =
+                    stac::io::get_opts(url, options).await;
                 match collection_result {
                     Ok(mut collection) => {
                         collection.make_links_absolute().unwrap();

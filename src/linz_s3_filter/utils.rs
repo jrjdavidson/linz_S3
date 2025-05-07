@@ -1,5 +1,6 @@
-use crate::linz_s3_filter::dataset::MatchingItems;
-use crate::linz_s3_filter::reporter::Reporter;
+use super::bucket_config;
+use super::dataset::MatchingItems;
+use super::reporter::Reporter;
 use log::{error, info, warn};
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
@@ -123,12 +124,10 @@ async fn add_collection_with_spatial_filter(
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
         tokio::spawn(async move {
-            match stac::io::get_opts::<stac::Item, _, _, _>(
-                url,
-                [("skip_signature", "true"), ("region", "ap-southeast-2")],
-            )
-            .await
-            {
+            let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+
+            let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
+            match result {
                 Ok(item) => {
                     reporter.report_finished_url().await;
 
@@ -183,12 +182,9 @@ pub async fn add_collection_without_filters(
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
         tokio::spawn(async move {
-            match stac::io::get_opts::<stac::Item, _, _, _>(
-                url,
-                [("skip_signature", "true"), ("region", "ap-southeast-2")],
-            )
-            .await
-            {
+            let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+            let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
+            match result {
                 Ok(item) => {
                     reporter.report_finished_url().await;
                     tx.send(Some(item)).await.unwrap();

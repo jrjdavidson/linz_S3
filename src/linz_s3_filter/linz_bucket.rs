@@ -51,7 +51,8 @@ impl LinzBucket {
             })
             .collect();
 
-        let num_cpus = num_cpus::get();
+        let mut num_cpus = num_cpus::get();
+        num_cpus = 1; // For testing purposes, set to 1 CPU core
         let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
         let (tx, mut rx) = mpsc::channel(num_channels);
 

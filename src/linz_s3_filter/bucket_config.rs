@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Deserialize;
 use std::fs;
 use std::io::ErrorKind;
@@ -48,7 +49,7 @@ fn load_config() -> ConfigFile {
     match fs::read_to_string("config.toml") {
         Ok(config_str) => toml::from_str(&config_str).expect("Failed to parse config file"),
         Err(e) if e.kind() == ErrorKind::NotFound => {
-            eprintln!("Config file not found, using default configuration.");
+            debug!("Config file not found, using default configuration.");
             ConfigFile::default()
         }
         Err(e) => panic!("Failed to read config file: {:?}", e),

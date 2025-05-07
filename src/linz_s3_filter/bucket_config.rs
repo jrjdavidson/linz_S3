@@ -4,6 +4,8 @@ use std::fs;
 use std::io::ErrorKind;
 use std::time::Duration;
 
+pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 10;
+
 #[derive(Debug, Clone)]
 pub struct BackoffConfig {
     pub init_backoff: Duration,

@@ -1,11 +1,11 @@
-use super::bucket_config;
+use super::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
 use log::{error, info, warn};
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 
 pub fn get_coordinate_from_dimension(
     lat: f64,
@@ -116,15 +116,17 @@ async fn add_collection_with_spatial_filter(
     let mut matching_items = vec![];
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-    let mut num_cpus = num_cpus::get();
-    num_cpus = 1; // For testing purposes, set to 1 CPU core
-    let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
+    let num_cpus = num_cpus::get();
+    let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER));
+    let num_channels = urls.len();
     let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;
     for url in urls {
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
+        let semaphore = Arc::clone(&semaphore);
         tokio::spawn(async move {
+            let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
 
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
@@ -175,15 +177,17 @@ pub async fn add_collection_without_filters(
     let mut matching_items = vec![];
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-    let mut num_cpus = num_cpus::get();
-    num_cpus = 1; // For testing purposes, set to 1 CPU core
-    let num_channels = urls.len().min(num_cpus * 2); // Use the number of URLs or twice the number of CPU cores, whichever is smaller
+    let num_cpus = num_cpus::get();
+    let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER));
+    let num_channels = urls.len();
     let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;
     for url in urls {
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
+        let semaphore = Arc::clone(&semaphore);
         tokio::spawn(async move {
+            let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
             match result {

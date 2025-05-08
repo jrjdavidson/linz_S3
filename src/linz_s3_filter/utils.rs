@@ -1,7 +1,7 @@
 use super::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
@@ -127,6 +127,7 @@ async fn add_collection_with_spatial_filter(
         let semaphore = Arc::clone(&semaphore);
         tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
+            debug!("Processing URL: {}", url);
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
 
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
@@ -188,6 +189,7 @@ pub async fn add_collection_without_filters(
         let semaphore = Arc::clone(&semaphore);
         tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
+            debug!("Processing URL: {}", url);
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
             match result {

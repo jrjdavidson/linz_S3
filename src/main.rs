@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 #[tokio::main]
 async fn main() {
     let args = Cli::parse();
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or(&args.log_level)).init();
+
     let spatial_filter_params = if args.spatial_filter.is_some() {
         Some(SpatialFilterParams::new(args.spatial_filter.unwrap()))
     } else {

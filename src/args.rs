@@ -2,7 +2,6 @@ use crate::linz_s3_filter::dataset;
 use clap::{builder::ValueParser, command, Parser, Subcommand};
 
 /// Enum for search mode.
-
 #[derive(Parser)]
 #[command(
     name = "linz_s3_filter",
@@ -17,32 +16,34 @@ pub struct Cli {
     pub bucket: dataset::LinzBucketName,
     /// Search mode: "coordinate" for lat/lon range, "area" for search by approx height/width in m.
     #[command(subcommand)]
-    /// Filter spatially by coordinates or dimensions.
     pub spatial_filter: Option<SpatialFilter>,
+    /// Download the tiles instead of just printing the URLs. Can be used with --cache to download to a specific directory, otherwise will download to the current directory regardless of the presence of the file in the current directory.
     #[arg(short, long)]
-    /// Download the tiles.
     pub download: bool,
-    #[arg(short, long, value_parser = folder_parser(), requires = "download")]
     /// Cache directory for downloaded tiles.
+    #[arg(short, long, value_parser = folder_parser(), requires = "download")]
     pub cache: Option<String>,
-    /// Automatically select the first dataset found, usually the highest resolution dataset.
+    /// Automatically select the first dataset listed. Datesets are ordered by resolution first, and within each resolution level, alphabetically.
     #[arg(short = 'f', group = "auto_select", long)]
     pub by_first_index: bool,
-    /// Automatically select the nth dataset found, usually the highest resolution dataset. Will default to the first if not specified.
+    /// Automatically select the nth dataset found. Will default to the first if not specified.
     #[arg(short = 'i', long, group = "auto_select")]
     pub by_index: Option<usize>,
     /// Automatically select all datasets. Useful for downloading all datasets that meet the search criteria.
     #[arg(short = 'a', long, group = "auto_select")]
     pub by_all: bool,
+    /// Automatically select the dataset with the most tiles. Can be useful for downloading the dataset with the highest area of coverage, however this is not always the case.
+    #[arg(short = 's', group = "auto_select", long)]
+    pub by_size: bool,
     /// Filter by collection name. Can be used multiple times, will match any of the provided names.
     #[arg(short = 'n', long)]
     pub include_collection_name: Option<Vec<String>>,
-    #[arg(short = 'x', long)]
     /// Exclude collections by name. Can be used multiple times, will exclude any of the provided names. Exclusion takes precedence over inclusion "include_collection_name" filter.
+    #[arg(short = 'x', long)]
     pub exclude_collection_name: Option<Vec<String>>,
-    /// Automatically select the dataset with the most tiles. Useful for downloading the dataset with the highest resolution and cover.
-    #[arg(short = 's', group = "auto_select", long)]
-    pub by_size: bool,
+    /// Set the log level (e.g., error, warn, info, debug, trace).
+    #[arg(short, long, default_value = "info", value_parser = log_level_parser())]
+    pub log_level: String,
 }
 
 #[derive(Subcommand)]
@@ -160,5 +161,12 @@ fn folder_parser() -> ValueParser {
         } else {
             Err(format!("'{}' is not a valid directory", s))
         }
+    })
+}
+
+fn log_level_parser() -> ValueParser {
+    ValueParser::new(|s: &str| match s.to_lowercase().as_str() {
+        "error" | "warn" | "info" | "debug" | "trace" => Ok(s.to_string()),
+        _ => Err(format!("Invalid log level: {}", s)),
     })
 }

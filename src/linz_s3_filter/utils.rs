@@ -1,4 +1,4 @@
-use super::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
+use super::bucket_config::{self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
 use log::{debug, error, info, warn};
@@ -117,7 +117,8 @@ async fn add_collection_with_spatial_filter(
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
     let num_cpus = num_cpus::get();
-    let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER));
+    let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
+    let semaphore = Arc::new(Semaphore::new(num_threads));
     let num_channels = urls.len();
     let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;
@@ -179,7 +180,8 @@ pub async fn add_collection_without_filters(
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
     let num_cpus = num_cpus::get();
-    let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER));
+    let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
+    let semaphore = Arc::new(Semaphore::new(num_threads));
     let num_channels = urls.len();
     let (tx, mut rx) = mpsc::channel(num_channels);
     reporter.add_urls(urls.len() as u64).await;

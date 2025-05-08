@@ -8,7 +8,9 @@ use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::{mpsc, Semaphore};
 use tokio::time::{self, Duration};
 
-use crate::linz_s3_filter::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
+use crate::linz_s3_filter::bucket_config::{
+    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER,
+};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
@@ -51,8 +53,7 @@ impl LinzBucket {
             })
             .collect();
 
-        let num_cpus = num_cpus::get();
-        let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER));
+        let semaphore = Arc::new(Semaphore::new(CONCURRENCY_LIMIT_COLLECTIONS));
         let num_channels = urls.len();
         let (tx, mut rx) = mpsc::channel(num_channels);
 
@@ -127,7 +128,8 @@ impl LinzBucket {
 
         self.start_reporting(Arc::clone(&reporter));
 
-        let semaphore = Arc::new(Semaphore::new(3)); // Limit concurrent threads
+        let num_cpus = num_cpus::get();
+        let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER)); // Limit concurrent threads
         let futures: Vec<_> = filtered_collections
             .iter()
             .map(|collection| {

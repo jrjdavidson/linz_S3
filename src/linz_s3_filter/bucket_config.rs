@@ -4,7 +4,8 @@ use std::fs;
 use std::io::ErrorKind;
 use std::time::Duration;
 
-pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 10;
+pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 1;
+pub const CONCURRENCY_LIMIT_COLLECTIONS: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct BackoffConfig {
@@ -23,7 +24,7 @@ pub struct RetryConfig {
 const BACKOFF_CONFIG: BackoffConfig = BackoffConfig {
     init_backoff: Duration::from_millis(500), // 500 milliseconds
     max_backoff: Duration::from_secs(30),     // 30 seconds
-    base: 2.0,                                // Multiplier of 2.0
+    base: 5.0,                                // Multiplier of 2.0
 };
 
 const RETRY_CONFIG: RetryConfig = RetryConfig {

@@ -5,7 +5,7 @@ use clap::{builder::ValueParser, command, Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     name = "linz_s3_filter",
-    version = "0.4.4",
+    version = "0.4.5",
     author = "Jonathan Davidson <jrjdavidson@gmail.com>",
     about = "A tool to search for, filter, and download datasets from LINZ S3 buckets.",
     allow_negative_numbers = true

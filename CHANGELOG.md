@@ -1,5 +1,9 @@
 
 # Changelog
+## [0.4.5] - 2025-04-09
+- limit threads explicitly to avoid crashes.
+
+
 ## [0.4.4] - 2025-04-09
 - add --by_all option to select all data.
 

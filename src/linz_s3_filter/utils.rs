@@ -100,7 +100,7 @@ pub fn extract_value_before_m(text: &str) -> f64 {
     if let Some(caps) = re.captures(text) {
         caps[1].parse().unwrap_or(f64::MAX)
     } else {
-        warn!("No match found in: {:?}", text);
+        debug!("No match found in: {:?}", text);
         f64::MAX
     }
 }

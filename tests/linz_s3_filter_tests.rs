@@ -1,4 +1,5 @@
 use linz_s3::linz_s3_filter::{dataset, linz_bucket::LinzBucket, utils};
+use serial_test::serial;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
@@ -9,6 +10,7 @@ fn init_logger() {
     });
 }
 #[tokio::test]
+#[serial]
 async fn test_get_tiles_from_lat_lon_empty() {
     init_logger();
 
@@ -23,6 +25,7 @@ async fn test_get_tiles_from_lat_lon_empty() {
     assert!(tiles.is_empty());
 }
 #[tokio::test]
+#[serial]
 async fn test_get_tiles_from_lat_lon() {
     init_logger();
 
@@ -38,6 +41,7 @@ async fn test_get_tiles_from_lat_lon() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_tiles_from_lat_lon_range() {
     init_logger();
 
@@ -55,6 +59,7 @@ async fn test_get_tiles_from_lat_lon_range() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_tiles_from_point_and_dimension() {
     init_logger();
 
@@ -73,6 +78,7 @@ async fn test_get_tiles_from_point_and_dimension() {
     assert!(!tiles.is_empty());
 }
 #[tokio::test]
+#[serial]
 async fn test_get_tiles_from_point_and_dimension_filter() {
     init_logger();
 

@@ -1,10 +1,12 @@
 use std::{fs, path::PathBuf, time::SystemTime};
 
 use assert_cmd::Command;
+use serial_test::serial;
 use tempfile::tempdir;
 
-#[tokio::test]
-async fn test_latlonsearch() {
+#[test]
+#[serial]
+fn test_latlonsearch() {
     let lat1 = "-45.9006";
     let lon1 = "170.8860";
     let lat2 = "-45.2865";
@@ -23,8 +25,9 @@ async fn test_latlonsearch() {
     cmd.assert().success().stdout(pred);
 }
 
-#[tokio::test]
-async fn test_areasearch() {
+#[test]
+#[serial]
+fn test_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-f")
@@ -41,8 +44,9 @@ async fn test_areasearch() {
     cmd.assert().success().stdout(pred);
 }
 
-#[tokio::test]
-async fn test_invalid_search_mode() {
+#[test]
+#[serial]
+fn test_invalid_search_mode() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("imagery")
         .arg("invalid_mode")
@@ -59,8 +63,9 @@ async fn test_invalid_search_mode() {
         .stderr(predicates::str::contains("unexpected argument"));
 }
 
-#[tokio::test]
-async fn test_missing_arguments_for_areasearch() {
+#[test]
+#[serial]
+fn test_missing_arguments_for_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation").arg("area").arg("-45.0").arg("167.0");
     let num_lines = 0; // Specify the number of lines you want to match
@@ -74,8 +79,9 @@ async fn test_missing_arguments_for_areasearch() {
         ));
 }
 
-#[tokio::test]
-async fn test_missing_arguments_for_coordinatesearch() {
+#[test]
+#[serial]
+fn test_missing_arguments_for_coordinatesearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation").arg("coordinate").arg("-45.0");
     let num_lines = 0; // Specify the number of lines you want to match
@@ -89,8 +95,9 @@ async fn test_missing_arguments_for_coordinatesearch() {
         ));
 }
 
-#[tokio::test]
-async fn test_invalid_latlon_values() {
+#[test]
+#[serial]
+fn test_invalid_latlon_values() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("coordinate")
@@ -105,8 +112,9 @@ async fn test_invalid_latlon_values() {
         .stderr(predicates::str::contains("error: invalid value"));
 }
 
-#[tokio::test]
-async fn test_empty_search_results() {
+#[test]
+#[serial]
+fn test_empty_search_results() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("coordinate")
@@ -124,8 +132,9 @@ async fn test_empty_search_results() {
         .stdout(pred);
 }
 
-#[tokio::test]
-async fn test_all_datasets() {
+#[test]
+#[serial]
+fn test_all_datasets() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("--by-all")
@@ -142,8 +151,9 @@ async fn test_all_datasets() {
     cmd.assert().success().stdout(pred);
 }
 
-#[tokio::test]
-async fn test_invalid_args() {
+#[test]
+#[serial]
+fn test_invalid_args() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-fs")
@@ -161,8 +171,9 @@ async fn test_invalid_args() {
         .stdout(pred);
 }
 
-#[tokio::test]
-async fn test_valid_search_with_download() {
+#[test]
+#[serial]
+fn test_valid_search_with_download() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
 
@@ -194,8 +205,9 @@ async fn test_valid_search_with_download() {
         "Expected exactly one file in the temporary directory"
     );
 }
-#[tokio::test]
-async fn test_valid_search_with_condition() {
+#[test]
+#[serial]
+fn test_valid_search_with_condition() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("--by-first-index")
@@ -209,8 +221,9 @@ async fn test_valid_search_with_condition() {
 
     cmd.assert().stdout(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_index() {
+#[test]
+#[serial]
+fn test_valid_search_with_index() {
     // could improve check
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
@@ -228,8 +241,9 @@ async fn test_valid_search_with_index() {
 
     cmd.assert().stdout(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_missing_index() {
+#[test]
+#[serial]
+fn test_valid_search_with_missing_index() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("--by-index") // No specific index provided, should default to 0
@@ -244,8 +258,9 @@ async fn test_valid_search_with_missing_index() {
         .stderr(predicates::str::contains("invalid value"))
         .failure();
 }
-#[tokio::test]
-async fn test_invalid_search_with_out_of_bounds_index() {
+#[test]
+#[serial]
+fn test_invalid_search_with_out_of_bounds_index() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("--by-index")
@@ -259,8 +274,9 @@ async fn test_invalid_search_with_out_of_bounds_index() {
 
     cmd.assert().stderr(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_conditon_and_one_result() {
+#[test]
+#[serial]
+fn test_valid_search_with_conditon_and_one_result() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-n")
@@ -275,8 +291,9 @@ async fn test_valid_search_with_conditon_and_one_result() {
 
     cmd.assert().stdout(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_conditon_and_mulitple_result() {
+#[test]
+#[serial]
+fn test_valid_search_with_conditon_and_mulitple_result() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-n")
@@ -293,8 +310,9 @@ async fn test_valid_search_with_conditon_and_mulitple_result() {
     cmd.assert().stdout(pred).success();
 }
 
-#[tokio::test]
-async fn test_valid_search_with_multiple_filters() {
+#[test]
+#[serial]
+fn test_valid_search_with_multiple_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-n")
@@ -314,8 +332,9 @@ async fn test_valid_search_with_multiple_filters() {
 
     cmd.assert().stderr(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_exclusion_filters() {
+#[test]
+#[serial]
+fn test_valid_search_with_exclusion_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-x")
@@ -330,8 +349,9 @@ async fn test_valid_search_with_exclusion_filters() {
             .unwrap();
     cmd.assert().stderr(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_exclusion_inclusion_filters() {
+#[test]
+#[serial]
+fn test_valid_search_with_exclusion_inclusion_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
         .arg("-n")
@@ -352,8 +372,9 @@ async fn test_valid_search_with_exclusion_inclusion_filters() {
             .unwrap();
     cmd.assert().stderr(pred).success();
 }
-#[tokio::test]
-async fn test_valid_search_with_download_and_cache() {
+#[test]
+#[serial]
+fn test_valid_search_with_download_and_cache() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
     let cache_dir = tempdir().unwrap();

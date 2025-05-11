@@ -2,14 +2,14 @@ use crate::linz_s3_filter::dataset::LinzBucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
 use futures::future::join_all;
-use log::info;
+use log::{error, info};
 use stac::{Catalog, Collection, Href, Links};
 use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::{mpsc, Semaphore};
 use tokio::time::{self, Duration};
 
 use crate::linz_s3_filter::bucket_config::{
-    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER,
+    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER, MPSC_CHANNEL_LIMIT,
 };
 
 pub struct LinzBucket {
@@ -53,14 +53,19 @@ impl LinzBucket {
             })
             .collect();
 
-        let semaphore = Arc::new(Semaphore::new(CONCURRENCY_LIMIT_COLLECTIONS));
-        let num_channels = urls.len();
-        let (tx, mut rx) = mpsc::channel(num_channels);
+        let permits = num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER;
+        info!("Number of permits: {}", permits);
 
+        let semaphore = Arc::new(Semaphore::new(permits));
+
+        let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT); // cap at 100
+        let (tx, mut rx) = mpsc::channel(buffer_size);
+
+        let mut handles = Vec::new();
         for url in urls {
-            let tx: mpsc::Sender<Option<Collection>> = tx.clone();
+            let tx = tx.clone();
             let semaphore = Arc::clone(&semaphore);
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
                 let options: Vec<(&'static str, String)> = bucket_config::get_opts();
 
@@ -69,23 +74,28 @@ impl LinzBucket {
                 match collection_result {
                     Ok(mut collection) => {
                         collection.make_links_absolute().unwrap();
-                        tx.send(Some(collection)).await.unwrap();
+                        if let Err(e) = tx.send(collection).await {
+                            error!("Failed to send collection: {}", e);
+                        }
                     }
                     Err(e) => {
-                        info!("Error fetching child item: {}", e);
-                        tx.send(None).await.unwrap();
+                        error!("Error fetching child item: {}", e);
                     }
                 }
             });
+            handles.push(handle);
         }
 
         drop(tx); // Close the sender channel
         let mut collections = Vec::new();
 
         while let Some(collection) = rx.recv().await {
-            if let Some(collection) = collection {
-                collections.push(collection);
-            }
+            collections.push(collection);
+        }
+
+        // Await all handles to ensure tasks are completed - this should be redundant since we are waiting on channel completion
+        for handle in handles {
+            handle.await.unwrap();
         }
 
         let collections_total = collections.len();
@@ -94,7 +104,7 @@ impl LinzBucket {
             collections_total
         );
 
-        let bucket = LinzBucket {
+        let bucket: LinzBucket = LinzBucket {
             collections,
             filtered_collections: None,
             reporter: Reporter::new(collections_total).await,
@@ -128,8 +138,7 @@ impl LinzBucket {
 
         self.start_reporting(Arc::clone(&reporter));
 
-        let num_cpus = num_cpus::get();
-        let semaphore = Arc::new(Semaphore::new(num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER)); // Limit concurrent threads
+        let semaphore = Arc::new(Semaphore::new(CONCURRENCY_LIMIT_COLLECTIONS)); // Limit concurrent threads
         let futures: Vec<_> = filtered_collections
             .iter()
             .map(|collection| {

@@ -1,7 +1,9 @@
-use super::bucket_config::{self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
+use super::bucket_config::{
+    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER, MPSC_CHANNEL_LIMIT,
+};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
-use log::{debug, error, info, warn};
+use log::{debug, error};
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
@@ -104,7 +106,6 @@ pub fn extract_value_before_m(text: &str) -> f64 {
         f64::MAX
     }
 }
-
 async fn add_collection_with_spatial_filter(
     collection: Collection,
     lon_min: f64,
@@ -118,16 +119,20 @@ async fn add_collection_with_spatial_filter(
     let urls = extract_urls(&collection);
     let num_cpus = num_cpus::get();
     let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
+    debug!("Number of threads: {}", num_threads);
     let semaphore = Arc::new(Semaphore::new(num_threads));
-    let num_channels = urls.len();
-    let (tx, mut rx) = mpsc::channel(num_channels);
+    let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT);
+    let (tx, mut rx) = mpsc::channel(buffer_size);
     reporter.add_urls(urls.len() as u64).await;
+
+    let mut handles = vec![];
+
     for url in urls {
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
         let semaphore = Arc::clone(&semaphore);
-        tokio::spawn(async move {
-            let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
+        let handle = tokio::spawn(async move {
+            let _permit = semaphore.acquire().await.unwrap();
             debug!("Processing URL: {}", url);
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
 
@@ -142,34 +147,41 @@ async fn add_collection_with_spatial_filter(
                             && bbox.xmin() <= lon_max
                             && bbox.xmax() >= lon_min
                     }) {
-                        tx.send(Some(item)).await.unwrap();
+                        if let Err(e) = tx.send(item).await {
+                            error!("Failed to send matching item: {}", e);
+                        }
                     }
                 }
                 Err(e) => {
                     reporter.report_finished_url().await;
-
                     error!("Error fetching child item: {}", e);
-                    tx.send(None).await.unwrap();
                 }
             }
         });
+
+        handles.push(handle);
     }
+
     drop(tx); // Close the sender channel
 
     while let Some(item) = rx.recv().await {
-        if let Some(item) = item {
-            matching_items.push(item);
-        }
+        matching_items.push(item);
+    }
+
+    for handle in handles {
+        handle.await.unwrap();
     }
 
     reporter.report_finished_collection().await;
+    debug!("Finished processing collection: {}", title);
     if !matching_items.is_empty() {
-        return Some(MatchingItems {
+        Some(MatchingItems {
             title,
             items: matching_items,
-        });
+        })
+    } else {
+        None
     }
-    None
 }
 
 pub async fn add_collection_without_filters(
@@ -182,14 +194,17 @@ pub async fn add_collection_without_filters(
     let num_cpus = num_cpus::get();
     let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
     let semaphore = Arc::new(Semaphore::new(num_threads));
-    let num_channels = urls.len();
-    let (tx, mut rx) = mpsc::channel(num_channels);
+    let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT);
+    let (tx, mut rx) = mpsc::channel(buffer_size);
     reporter.add_urls(urls.len() as u64).await;
+
+    let mut handles = vec![];
+
     for url in urls {
         let tx = tx.clone();
         let reporter = Arc::clone(&reporter);
         let semaphore = Arc::clone(&semaphore);
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
             debug!("Processing URL: {}", url);
             let options: Vec<(&'static str, String)> = bucket_config::get_opts();
@@ -197,22 +212,28 @@ pub async fn add_collection_without_filters(
             match result {
                 Ok(item) => {
                     reporter.report_finished_url().await;
-                    tx.send(Some(item)).await.unwrap();
+                    if let Err(e) = tx.send(item).await {
+                        error!("Failed to send matching item: {}", e);
+                    }
                 }
                 Err(e) => {
                     reporter.report_finished_url().await;
-                    info!("Error fetching child item: {}", e);
-                    tx.send(None).await.unwrap();
+                    error!("Error fetching child item: {}", e);
                 }
             }
         });
+
+        handles.push(handle);
     }
     drop(tx); // Close the sender channel
 
     while let Some(item) = rx.recv().await {
-        if let Some(item) = item {
-            matching_items.push(item);
-        }
+        matching_items.push(item);
+    }
+
+    // Await all handles to ensure tasks are completed
+    for handle in handles {
+        handle.await.unwrap();
     }
 
     reporter.report_finished_collection().await;

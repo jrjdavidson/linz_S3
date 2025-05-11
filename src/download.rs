@@ -6,7 +6,8 @@ use sanitize_filename::sanitize;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use tokio::task;
+use tokio::sync::oneshot;
+use tokio::{signal, task};
 
 pub async fn process_tile_list(
     tile_list: &[(Vec<String>, String)],
@@ -22,6 +23,16 @@ pub async fn process_tile_list(
         .unwrap()
         .progress_chars("#>-"));
     info!("Starting downloads...");
+
+    // Create a channel to signal cancellation
+    let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+
+    // Spawn a task to listen for the interrupt signal
+    tokio::spawn(async move {
+        signal::ctrl_c().await.expect("Failed to listen for event");
+        let _ = cancel_tx.send(());
+    });
+
     for tile_url in &tile_list[index].0 {
         if download {
             let url = tile_url.to_string();
@@ -56,9 +67,19 @@ pub async fn process_tile_list(
         }
     }
     let download_count = tasks.len();
-    for task in tasks {
+
+    // Wait for tasks to complete or cancellation signal
+    tokio::select! {
+     _ = async {
+      for task in tasks {
         task.await.unwrap();
+      }
+     } => {},
+     _ = cancel_rx => {
+      info!("Download process interrupted by user");
+     }
     }
+
     progress_bar.finish_with_message("Process complete");
     if download {
         info!(

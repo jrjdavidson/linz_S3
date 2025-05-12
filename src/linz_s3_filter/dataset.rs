@@ -12,7 +12,7 @@ pub enum BucketName {
     Imagery,
 }
 
-impl LinzBucketName {
+impl BucketName {
     pub fn as_str(&self) -> &str {
         match self {
             BucketName::Elevation => "https://nz-elevation.s3.ap-southeast-2.amazonaws.com",

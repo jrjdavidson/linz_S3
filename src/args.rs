@@ -13,7 +13,7 @@ use clap::{builder::ValueParser, command, Parser, Subcommand};
 #[command(propagate_version = true)]
 pub struct Cli {
     /// The dataset bucket to search (e.g., imagery or elevation).
-    pub bucket: dataset::LinzBucketName,
+    pub bucket: dataset::BucketName,
     /// Search mode: "coordinate" for lat/lon range, "area" for search by approx height/width in m.
     #[command(subcommand)]
     pub spatial_filter: Option<SpatialFilter>,

@@ -1,4 +1,4 @@
-use crate::linz_s3_filter::dataset::LinzBucketName;
+use crate::linz_s3_filter::dataset::BucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
 use futures::future::join_all;
@@ -19,12 +19,9 @@ pub struct LinzBucket {
 }
 
 impl LinzBucket {
-    pub async fn initialise_catalog(dataset: LinzBucketName) -> Result<Self, stac::Error> {
+    pub async fn initialise_catalog(dataset: BucketName) -> Result<Self, stac::Error> {
         info!("Initialising Catalog...");
-        let catalog_url = format!(
-            "https://{}.s3.ap-southeast-2.amazonaws.com/catalog.json",
-            dataset.as_str()
-        );
+        let catalog_url = format!("{}/catalog.json", dataset.as_str());
 
         let options: Vec<(&'static str, String)> = bucket_config::get_opts();
 

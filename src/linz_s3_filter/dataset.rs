@@ -7,7 +7,7 @@ pub struct MatchingItems {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum LinzBucketName {
+pub enum BucketName {
     Elevation,
     Imagery,
 }
@@ -15,8 +15,8 @@ pub enum LinzBucketName {
 impl LinzBucketName {
     pub fn as_str(&self) -> &str {
         match self {
-            LinzBucketName::Elevation => "nz-elevation",
-            LinzBucketName::Imagery => "nz-imagery",
+            BucketName::Elevation => "https://nz-elevation.s3.ap-southeast-2.amazonaws.com",
+            BucketName::Imagery => "https://nz-imagery.s3.ap-southeast-2.amazonaws.com",
         }
     }
 }

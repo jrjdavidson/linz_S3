@@ -14,7 +14,7 @@ fn init_logger() {
 async fn test_get_tiles_from_lat_lon_empty() {
     init_logger();
 
-    let dataset = dataset::LinzBucketName::Imagery;
+    let dataset = dataset::BucketName::Imagery;
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat = 40.9006;
     let lon = 174.8860;
@@ -29,7 +29,7 @@ async fn test_get_tiles_from_lat_lon_empty() {
 async fn test_get_tiles_from_lat_lon() {
     init_logger();
 
-    let dataset = dataset::LinzBucketName::Elevation;
+    let dataset = dataset::BucketName::Elevation;
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat = -45.0;
     let lon = 167.0;
@@ -45,7 +45,7 @@ async fn test_get_tiles_from_lat_lon() {
 async fn test_get_tiles_from_lat_lon_range() {
     init_logger();
 
-    let dataset = dataset::LinzBucketName::Elevation;
+    let dataset = dataset::BucketName::Elevation;
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat1 = -45.9006;
     let lon1 = 170.8860;
@@ -63,7 +63,7 @@ async fn test_get_tiles_from_lat_lon_range() {
 async fn test_get_tiles_from_point_and_dimension() {
     init_logger();
 
-    let dataset = dataset::LinzBucketName::Elevation;
+    let dataset = dataset::BucketName::Elevation;
     let linz_bucket = LinzBucket::initialise_catalog(dataset).await;
     let lat = -45.0;
     let lon = 167.0;
@@ -82,7 +82,7 @@ async fn test_get_tiles_from_point_and_dimension() {
 async fn test_get_tiles_from_point_and_dimension_filter() {
     init_logger();
 
-    let dataset = dataset::LinzBucketName::Elevation;
+    let dataset = dataset::BucketName::Elevation;
     let mut linz_bucket = LinzBucket::initialise_catalog(dataset).await.unwrap();
     linz_bucket.set_collection_filter(Some(&["Southland".to_string()]), None, None);
     let lat = -45.0;

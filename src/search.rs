@@ -6,7 +6,7 @@ use crate::args::SpatialFilterParams;
 // use pyo3::prelude::*;
 
 pub async fn search_catalog(
-    bucket: dataset::LinzBucketName,
+    bucket: dataset::BucketName,
     spatial_params: Option<SpatialFilterParams>,
     collection_name_filter_opt: Option<Vec<String>>,
     collection_exclusion_opt: Option<Vec<String>>,

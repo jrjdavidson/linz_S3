@@ -1,6 +1,7 @@
 use clap::Parser;
 use env_logger::Env;
 use linz_s3::args::SpatialFilterParams;
+use linz_s3::linz_s3_filter::bucket_config;
 use linz_s3::process_tile_list;
 use linz_s3::{search_catalog, Cli};
 use log::{error, info};
@@ -12,6 +13,7 @@ use std::path::{Path, PathBuf};
 async fn main() {
     let args = Cli::parse();
     env_logger::Builder::from_env(Env::default().default_filter_or(&args.log_level)).init();
+    bucket_config::ConfigFile::init();
 
     let spatial_filter_params = if args.spatial_filter.is_some() {
         Some(SpatialFilterParams::new(args.spatial_filter.unwrap()))

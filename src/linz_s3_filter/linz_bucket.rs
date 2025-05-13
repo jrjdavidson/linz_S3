@@ -1,8 +1,9 @@
+use crate::error::MyError;
 use crate::linz_s3_filter::dataset::BucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
 use futures::future::join_all;
-use log::{error, info};
+use log::{debug, error, info};
 use stac::{Catalog, Collection, Href, Links};
 use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::{mpsc, Semaphore};
@@ -23,7 +24,7 @@ impl LinzBucket {
         info!("Initialising Catalog...");
         let catalog_url = format!("{}/catalog.json", dataset.as_str());
 
-        let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+        let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
 
         let mut catalog: Catalog = stac::io::get_opts(catalog_url, options).await?;
 
@@ -51,7 +52,7 @@ impl LinzBucket {
             .collect();
 
         let permits = num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER;
-        info!("Number of permits: {}", permits);
+        debug!("Number of permits: {}", permits);
 
         let semaphore = Arc::new(Semaphore::new(permits));
 
@@ -64,7 +65,7 @@ impl LinzBucket {
             let semaphore = Arc::clone(&semaphore);
             let handle = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
-                let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+                let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
 
                 let collection_result: Result<Collection, stac::Error> =
                     stac::io::get_opts(url, options).await;
@@ -76,7 +77,7 @@ impl LinzBucket {
                         }
                     }
                     Err(e) => {
-                        error!("Error fetching child item: {}", e);
+                        MyError::from(e).report();
                     }
                 }
             });

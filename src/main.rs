@@ -132,7 +132,7 @@ async fn main() {
             }
         }
         Err(e) => {
-            error!("Error: {}", e);
+            e.report();
         }
     }
 }

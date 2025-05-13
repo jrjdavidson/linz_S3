@@ -1,3 +1,5 @@
+use crate::error::MyError;
+
 use super::bucket_config::{
     self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER, MPSC_CHANNEL_LIMIT,
 };
@@ -134,7 +136,7 @@ async fn add_collection_with_spatial_filter(
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
             debug!("Processing URL: {}", url);
-            let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+            let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
 
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
             match result {
@@ -154,7 +156,7 @@ async fn add_collection_with_spatial_filter(
                 }
                 Err(e) => {
                     reporter.report_finished_url().await;
-                    error!("Error fetching child item: {}", e);
+                    MyError::from(e).report();
                 }
             }
         });
@@ -207,18 +209,18 @@ pub async fn add_collection_without_filters(
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
             debug!("Processing URL: {}", url);
-            let options: Vec<(&'static str, String)> = bucket_config::get_opts();
+            let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
             let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
             match result {
                 Ok(item) => {
                     reporter.report_finished_url().await;
                     if let Err(e) = tx.send(item).await {
-                        error!("Failed to send matching item: {}", e);
+                        MyError::from(Box::new(e)).report();
                     }
                 }
                 Err(e) => {
                     reporter.report_finished_url().await;
-                    error!("Error fetching child item: {}", e);
+                    MyError::from(e).report();
                 }
             }
         });

@@ -34,8 +34,6 @@ pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 50;
 //     backoff: BACKOFF_CONFIG,
 // };
 
-const RETRY_CONFIG_STR: &str = "RetryConfig { backoff: BackoffConfig { init_backoff: 500ms, max_backoff: 30s, base: 5.0 }, max_retries: 3, retry_timeout: 180s }";
-
 #[derive(Debug, Deserialize)]
 pub struct ConfigFile {
     skip_signature: &'static str,
@@ -80,6 +78,5 @@ pub fn get_opts() -> Vec<(&'static str, &'static str)> {
     vec![
         ("skip_signature", config.skip_signature),
         ("region", config.region),
-        ("retry_config", RETRY_CONFIG_STR),
     ]
 }

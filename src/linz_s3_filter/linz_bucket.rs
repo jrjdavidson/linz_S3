@@ -133,11 +133,18 @@ impl LinzBucket {
                 let semaphore = Arc::clone(&semaphore);
 
                 tokio::spawn(async move {
+                    let thread_semaphore = Arc::clone(&semaphore);
                     let _permit = semaphore.acquire_owned().await.unwrap();
                     reporter.add_thread();
 
                     let result = process_collection(
-                        collection, lon1_opt, lat1_opt, lon2_opt, lat2_opt, &reporter,
+                        collection,
+                        lon1_opt,
+                        lat1_opt,
+                        lon2_opt,
+                        lat2_opt,
+                        &reporter,
+                        thread_semaphore,
                     )
                     .await;
                     reporter.report_finished_thread();

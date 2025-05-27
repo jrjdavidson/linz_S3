@@ -6,10 +6,8 @@ use std::sync::OnceLock;
 // use std::time::Duration;
 
 // The number of concurrent threads will be limited to the number of CPU cores multiplied by this constant
-pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 10;
+pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 50;
 // The number of concurrent threads for collections will be limited to this constant. Each collection will be allowed to spawn 1/this of the allowed concurrent threads.
-pub const CONCURRENCY_LIMIT_COLLECTIONS: usize = 4;
-pub const MPSC_CHANNEL_LIMIT: usize = 1000;
 
 // #[derive(Debug, Clone)]
 // pub struct BackoffConfig {

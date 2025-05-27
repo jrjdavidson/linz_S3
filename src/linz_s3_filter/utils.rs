@@ -1,15 +1,14 @@
 use crate::error::MyError;
 
-use super::bucket_config::{
-    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER, MPSC_CHANNEL_LIMIT,
-};
+use super::bucket_config::{self};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
-use log::{debug, error};
+use futures::future::join_all;
+use log::debug;
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
 use std::sync::Arc;
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::Semaphore;
 
 pub fn get_coordinate_from_dimension(
     lat: f64,
@@ -65,7 +64,8 @@ pub async fn process_collection(
     lat1_opt: Option<f64>,
     lon2_opt: Option<f64>,
     lat2_opt: Option<f64>,
-    reporter: Arc<Reporter>,
+    reporter: &Arc<Reporter>,
+    semaphore: Arc<Semaphore>,
 ) -> Option<MatchingItems> {
     if let (Some(lon1), Some(lat1)) = (lon1_opt, lat1_opt) {
         let (lon_min, lon_max, lat_min, lat_max) =
@@ -87,15 +87,15 @@ pub async fn process_collection(
                 && bbox.xmax() >= lon_min
             {
                 return add_collection_with_spatial_filter(
-                    collection, lon_min, lat_min, lon_max, lat_max, reporter,
+                    collection, lon_min, lat_min, lon_max, lat_max, reporter, semaphore,
                 )
                 .await;
             }
         }
-        reporter.report_finished_collection().await;
+        reporter.report_finished_collection();
         None
     } else {
-        add_collection_without_filters(collection, reporter).await
+        add_collection_without_filters(collection, reporter, semaphore).await
     }
 }
 
@@ -108,74 +108,70 @@ pub fn extract_value_before_m(text: &str) -> f64 {
         f64::MAX
     }
 }
-async fn add_collection_with_spatial_filter(
+
+pub async fn add_collection_with_spatial_filter(
     collection: Collection,
     lon_min: f64,
     lat_min: f64,
     lon_max: f64,
     lat_max: f64,
-    reporter: Arc<Reporter>,
+    reporter: &Arc<Reporter>,
+    semaphore: Arc<Semaphore>,
 ) -> Option<MatchingItems> {
-    let mut matching_items = vec![];
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-    let num_cpus = num_cpus::get();
-    let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
-    debug!("Number of threads: {}", num_threads);
-    let semaphore = Arc::new(Semaphore::new(num_threads));
-    let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT);
-    let (tx, mut rx) = mpsc::channel(buffer_size);
-    reporter.add_urls(urls.len() as u64).await;
 
-    let mut handles = vec![];
+    reporter.add_urls(urls.len());
 
-    for url in urls {
-        let tx = tx.clone();
-        let reporter = Arc::clone(&reporter);
-        let semaphore = Arc::clone(&semaphore);
-        let handle = tokio::spawn(async move {
-            let _permit = semaphore.acquire().await.unwrap();
-            debug!("Processing URL: {}", url);
-            let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
+    let handles: Vec<_> = urls
+        .into_iter()
+        .map(|url| {
+            let reporter = Arc::clone(reporter);
+            let semaphore = Arc::clone(&semaphore);
+            tokio::spawn(async move {
+                let _permit = semaphore.acquire().await.unwrap();
+                reporter.add_thread();
+                debug!("Processing URL: {}", url);
+                let options = bucket_config::get_opts();
 
-            let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
-            match result {
-                Ok(item) => {
-                    reporter.report_finished_url().await;
+                let result: Result<stac::Item, stac::Error> =
+                    stac::io::get_opts(url, options).await;
+                reporter.report_finished_url();
+                reporter.report_finished_thread();
 
-                    if item.bbox.iter().any(|bbox| {
-                        bbox.ymin() <= lat_max
-                            && bbox.ymax() >= lat_min
-                            && bbox.xmin() <= lon_max
-                            && bbox.xmax() >= lon_min
-                    }) {
-                        if let Err(e) = tx.send(item).await {
-                            error!("Failed to send matching item: {}", e);
+                match result {
+                    Ok(item) => {
+                        let matches = item.bbox.iter().any(|bbox| {
+                            bbox.ymin() <= lat_max
+                                && bbox.ymax() >= lat_min
+                                && bbox.xmin() <= lon_max
+                                && bbox.xmax() >= lon_min
+                        });
+                        if matches {
+                            Some(item)
+                        } else {
+                            None
                         }
                     }
+                    Err(e) => {
+                        MyError::from(e).report();
+                        None
+                    }
                 }
-                Err(e) => {
-                    reporter.report_finished_url().await;
-                    MyError::from(e).report();
-                }
-            }
-        });
+            })
+        })
+        .collect();
 
-        handles.push(handle);
-    }
+    let results = join_all(handles).await;
+    let matching_items: Vec<_> = results
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect();
 
-    drop(tx); // Close the sender channel
-
-    while let Some(item) = rx.recv().await {
-        matching_items.push(item);
-    }
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-
-    reporter.report_finished_collection().await;
+    reporter.report_finished_collection();
     debug!("Finished processing collection: {}", title);
+
     if !matching_items.is_empty() {
         Some(MatchingItems {
             title,
@@ -188,64 +184,49 @@ async fn add_collection_with_spatial_filter(
 
 pub async fn add_collection_without_filters(
     collection: Collection,
-    reporter: Arc<Reporter>,
+    reporter: &Arc<Reporter>,
+    semaphore: Arc<Semaphore>,
 ) -> Option<MatchingItems> {
-    let mut matching_items = vec![];
     let title = collection.title.clone().unwrap_or_default();
     let urls = extract_urls(&collection);
-    let num_cpus = num_cpus::get();
-    let num_threads = num_cpus * CONCURRENCY_LIMIT_CPU_MULTIPLIER / CONCURRENCY_LIMIT_COLLECTIONS;
-    let semaphore = Arc::new(Semaphore::new(num_threads));
-    let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT);
-    let (tx, mut rx) = mpsc::channel(buffer_size);
-    reporter.add_urls(urls.len() as u64).await;
 
-    let mut handles = vec![];
+    reporter.add_urls(urls.len());
 
-    for url in urls {
-        let tx = tx.clone();
-        let reporter = Arc::clone(&reporter);
-        let semaphore = Arc::clone(&semaphore);
-        let handle = tokio::spawn(async move {
-            let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
-            debug!("Processing URL: {}", url);
-            let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
-            let result: Result<stac::Item, stac::Error> = stac::io::get_opts(url, options).await;
-            match result {
-                Ok(item) => {
-                    reporter.report_finished_url().await;
-                    if let Err(e) = tx.send(item).await {
-                        MyError::from(Box::new(e)).report();
-                    }
-                }
-                Err(e) => {
-                    reporter.report_finished_url().await;
-                    MyError::from(e).report();
-                }
-            }
-        });
+    let handles: Vec<_> = urls
+        .into_iter()
+        .map(|url| {
+            let reporter = Arc::clone(reporter);
+            let semaphore = Arc::clone(&semaphore);
+            tokio::spawn(async move {
+                let _permit = semaphore.acquire().await.unwrap();
+                reporter.add_thread();
+                debug!("Processing URL: {}", url);
+                let options = bucket_config::get_opts();
+                let result = stac::io::get_opts(url, options).await;
+                reporter.report_finished_url();
+                reporter.report_finished_thread();
+                result.ok()
+            })
+        })
+        .collect();
 
-        handles.push(handle);
-    }
-    drop(tx); // Close the sender channel
+    let results = join_all(handles).await;
+    let matching_items: Vec<_> = results
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect();
 
-    while let Some(item) = rx.recv().await {
-        matching_items.push(item);
-    }
+    reporter.report_finished_collection();
 
-    // Await all handles to ensure tasks are completed
-    for handle in handles {
-        handle.await.unwrap();
-    }
-
-    reporter.report_finished_collection().await;
     if !matching_items.is_empty() {
-        return Some(MatchingItems {
+        Some(MatchingItems {
             title,
             items: matching_items,
-        });
+        })
+    } else {
+        None
     }
-    None
 }
 
 fn extract_urls(collection: &Collection) -> Vec<String> {
@@ -322,10 +303,18 @@ mod tests {
         env::set_current_dir(new_dir).expect("Failed to change directory");
         let collection: Collection = stac::read("collection.json").unwrap();
 
-        let reporter = Arc::new(Reporter::new(1).await);
-
-        let result =
-            process_collection(collection, Some(172.93), Some(1.35), None, None, reporter).await;
+        let reporter = Arc::new(Reporter::new(1));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
+        let result = process_collection(
+            collection,
+            Some(172.93),
+            Some(1.35),
+            None,
+            None,
+            &reporter,
+            semaphore,
+        )
+        .await;
         assert!(result.is_some());
         env::set_current_dir(original_dir).expect("Failed to change directory");
     }

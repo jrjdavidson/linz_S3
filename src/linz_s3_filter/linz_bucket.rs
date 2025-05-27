@@ -3,15 +3,13 @@ use crate::linz_s3_filter::dataset::BucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
 use futures::future::join_all;
-use log::{debug, error, info};
+use log::{debug, info};
 use stac::{Catalog, Collection, Href, Links};
 use std::sync::{atomic::Ordering, Arc};
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::Semaphore;
 use tokio::time::{self, Duration};
 
-use crate::linz_s3_filter::bucket_config::{
-    self, CONCURRENCY_LIMIT_COLLECTIONS, CONCURRENCY_LIMIT_CPU_MULTIPLIER, MPSC_CHANNEL_LIMIT,
-};
+use crate::linz_s3_filter::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
 
 pub struct LinzBucket {
     pub collections: Vec<Collection>,
@@ -23,27 +21,22 @@ impl LinzBucket {
     pub async fn initialise_catalog(dataset: BucketName) -> Result<Self, stac::Error> {
         info!("Initialising Catalog...");
         let catalog_url = format!("{}/catalog.json", dataset.as_str());
-
-        let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
+        let options = bucket_config::get_opts();
 
         let mut catalog: Catalog = stac::io::get_opts(catalog_url, options).await?;
-
         info!("ID: {}", catalog.id);
         info!("Title: {}", catalog.title.as_deref().unwrap_or("N/A"));
         info!("Description: {}", catalog.description);
         catalog.make_links_absolute().unwrap();
-        // Iterate through the links and fetch more details
+
         let urls: Vec<String> = catalog
             .links()
             .iter()
             .filter_map(|link| {
                 if link.is_child() {
-                    if let Href::Url(url) = &link.href {
-                        Some(url.to_string())
-                    } else if let Href::String(string) = &link.href {
-                        Some(string.to_string())
-                    } else {
-                        None
+                    match &link.href {
+                        Href::Url(url) => Some(url.to_string()),
+                        Href::String(s) => Some(s.to_string()),
                     }
                 } else {
                     None
@@ -53,48 +46,37 @@ impl LinzBucket {
 
         let permits = num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER;
         debug!("Number of permits: {}", permits);
-
         let semaphore = Arc::new(Semaphore::new(permits));
 
-        let buffer_size = std::cmp::min(urls.len(), MPSC_CHANNEL_LIMIT); // cap at 100
-        let (tx, mut rx) = mpsc::channel(buffer_size);
-
-        let mut handles = Vec::new();
-        for url in urls {
-            let tx = tx.clone();
-            let semaphore = Arc::clone(&semaphore);
-            let handle = tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap(); // Acquire a permit
-                let options: Vec<(&'static str, &'static str)> = bucket_config::get_opts();
-
-                let collection_result: Result<Collection, stac::Error> =
-                    stac::io::get_opts(url, options).await;
-                match collection_result {
-                    Ok(mut collection) => {
-                        collection.make_links_absolute().unwrap();
-                        if let Err(e) = tx.send(collection).await {
-                            error!("Failed to send collection: {}", e);
+        let handles: Vec<_> = urls
+            .into_iter()
+            .map(|url| {
+                let semaphore = Arc::clone(&semaphore);
+                tokio::spawn(async move {
+                    let _permit = semaphore.acquire().await.unwrap();
+                    let options = bucket_config::get_opts();
+                    let result: Result<Collection, stac::Error> =
+                        stac::io::get_opts(url, options).await;
+                    match result {
+                        Ok(mut collection) => {
+                            collection.make_links_absolute().unwrap();
+                            Some(collection)
+                        }
+                        Err(e) => {
+                            MyError::from(e).report();
+                            None
                         }
                     }
-                    Err(e) => {
-                        MyError::from(e).report();
-                    }
-                }
-            });
-            handles.push(handle);
-        }
+                })
+            })
+            .collect();
 
-        drop(tx); // Close the sender channel
-        let mut collections = Vec::new();
-
-        while let Some(collection) = rx.recv().await {
-            collections.push(collection);
-        }
-
-        // Await all handles to ensure tasks are completed - this should be redundant since we are waiting on channel completion
-        for handle in handles {
-            handle.await.unwrap();
-        }
+        let results = join_all(handles).await;
+        let collections: Vec<_> = results
+            .into_iter()
+            .filter_map(Result::ok)
+            .flatten()
+            .collect();
 
         let collections_total = collections.len();
         info!(
@@ -102,21 +84,25 @@ impl LinzBucket {
             collections_total
         );
 
-        let bucket: LinzBucket = LinzBucket {
+        let bucket = LinzBucket {
             collections,
             filtered_collections: None,
-            reporter: Reporter::new(collections_total).await,
+            reporter: Reporter::new(collections_total),
         };
+
         Ok(bucket)
     }
 
     fn start_reporting(&self, reporter: Arc<Reporter>) {
         tokio::spawn(async move {
+            reporter.add_thread();
             let mut interval = time::interval(Duration::from_secs(1));
+
             while !reporter.stop_flag.load(Ordering::Relaxed) {
                 interval.tick().await;
-                reporter.report().await;
+                reporter.report();
             }
+            reporter.report_finished_thread();
         });
     }
 
@@ -131,12 +117,14 @@ impl LinzBucket {
             .filtered_collections
             .as_ref()
             .unwrap_or(&self.collections);
-        self.reporter.reset_all(filtered_collections.len()).await;
+        self.reporter.reset_all(filtered_collections.len());
         let reporter = Arc::new(self.reporter.clone());
 
         self.start_reporting(Arc::clone(&reporter));
 
-        let semaphore = Arc::new(Semaphore::new(CONCURRENCY_LIMIT_COLLECTIONS)); // Limit concurrent threads
+        let semaphore = Arc::new(Semaphore::new(
+            num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER,
+        )); // Limit concurrent threads
         let futures: Vec<_> = filtered_collections
             .iter()
             .map(|collection| {
@@ -145,9 +133,15 @@ impl LinzBucket {
                 let semaphore = Arc::clone(&semaphore);
 
                 tokio::spawn(async move {
-                    let _permit = semaphore.acquire_owned().await.unwrap(); // Await the
-                    process_collection(collection, lon1_opt, lat1_opt, lon2_opt, lat2_opt, reporter)
-                        .await
+                    let _permit = semaphore.acquire_owned().await.unwrap();
+                    reporter.add_thread();
+
+                    let result = process_collection(
+                        collection, lon1_opt, lat1_opt, lon2_opt, lat2_opt, &reporter,
+                    )
+                    .await;
+                    reporter.report_finished_thread();
+                    result
                 })
             })
             .collect();
@@ -178,7 +172,7 @@ impl LinzBucket {
             .collections
             .iter()
             .filter(|collection| {
-                let include = collection_name_filters.map_or(true, |filters| {
+                let include = collection_name_filters.is_none_or(|filters| {
                     filters.is_empty()
                         || filters.iter().any(|filter| {
                             collection.id.contains(filter)
@@ -194,7 +188,7 @@ impl LinzBucket {
                 });
 
                 let within_extent =
-                    extent.map_or(true, |(min_lat, min_lon, max_lat_opt, max_lon_opt)| {
+                    extent.is_none_or(|(min_lat, min_lon, max_lat_opt, max_lon_opt)| {
                         collection.extent.spatial.bbox.iter().any(|bbox| {
                             bbox.xmin() <= max_lon_opt.unwrap_or(min_lon)
                                 && bbox.xmax() >= min_lon

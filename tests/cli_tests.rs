@@ -45,7 +45,6 @@ fn test_areasearch() {
 }
 
 #[test]
-#[serial]
 fn test_invalid_search_mode() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("imagery")
@@ -64,7 +63,6 @@ fn test_invalid_search_mode() {
 }
 
 #[test]
-#[serial]
 fn test_missing_arguments_for_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation").arg("area").arg("-45.0").arg("167.0");
@@ -80,7 +78,6 @@ fn test_missing_arguments_for_areasearch() {
 }
 
 #[test]
-#[serial]
 fn test_missing_arguments_for_coordinatesearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation").arg("coordinate").arg("-45.0");
@@ -96,7 +93,6 @@ fn test_missing_arguments_for_coordinatesearch() {
 }
 
 #[test]
-#[serial]
 fn test_invalid_latlon_values() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
@@ -152,7 +148,6 @@ fn test_all_datasets() {
 }
 
 #[test]
-#[serial]
 fn test_invalid_args() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")

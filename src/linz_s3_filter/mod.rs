@@ -25,10 +25,18 @@ mod tests {
         let item = stac::read("tests/data/simple-item.json").unwrap();
         let mut collection = Collection::new_from_item("an-id", "a description", &item);
         collection.title = Some("Test Collection".to_string());
-
-        let reporter = Arc::new(Reporter::new(1).await);
-        let result =
-            process_collection(collection, Some(172.93), Some(1.35), None, None, reporter).await;
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
+        let reporter = Arc::new(Reporter::new(1));
+        let result = process_collection(
+            collection,
+            Some(172.93),
+            Some(1.35),
+            None,
+            None,
+            &reporter,
+            semaphore,
+        )
+        .await;
 
         assert!(result.is_some());
         let matching_items = result.unwrap();

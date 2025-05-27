@@ -1,154 +1,168 @@
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    Arc,
+};
+
 use log::info;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+
 #[derive(Clone)]
 pub struct Reporter {
-    urls_read: Arc<Mutex<u64>>,
-    urls_total: Arc<Mutex<u64>>,
-    collections_read: Arc<Mutex<u64>>,
+    urls_read: Arc<AtomicUsize>,
+    urls_total: Arc<AtomicUsize>,
+    collections_read: Arc<AtomicUsize>,
+    open_threads: Arc<AtomicUsize>,
     pub collections_total: usize,
     pub stop_flag: Arc<AtomicBool>,
 }
 
 impl Reporter {
-    pub async fn new(collections_total: usize) -> Self {
+    pub fn new(collections_total: usize) -> Self {
         Reporter {
-            urls_read: Arc::new(Mutex::new(0)),
-            urls_total: Arc::new(Mutex::new(0)),
-            collections_read: Arc::new(Mutex::new(0)),
+            urls_read: Arc::new(AtomicUsize::new(0)),
+            urls_total: Arc::new(AtomicUsize::new(0)),
+            open_threads: Arc::new(AtomicUsize::new(0)),
+            collections_read: Arc::new(AtomicUsize::new(0)),
             collections_total,
             stop_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
-    pub async fn report(&self) {
-        let urls_read = self.urls_read.lock().await;
-        let urls_total = self.urls_total.lock().await;
-        let collections_read = self.collections_read.lock().await;
+    pub fn report(&self) {
         if !self.stop_flag.load(Ordering::Relaxed) {
             info!(
-                "Reporting: {}/{} Collections read, {}/{} URLS read",
-                collections_read, self.collections_total, urls_read, urls_total
+                "Reporting: {}/{} Collections read, {}/{} URLS read, Open threads:{}",
+                self.collections_read.load(Ordering::Relaxed),
+                self.collections_total,
+                self.urls_read.load(Ordering::Relaxed),
+                self.urls_total.load(Ordering::Relaxed),
+                self.open_threads.load(Ordering::Relaxed)
             );
         }
     }
 
-    pub async fn report_finished_collection(&self) {
-        let mut collections_read = self.collections_read.lock().await;
-        *collections_read += 1;
-    }
-    pub async fn reset_collection_read(&self) {
-        let mut collections_read = self.collections_read.lock().await;
-        *collections_read = 0;
+    pub fn report_finished_collection(&self) {
+        self.collections_read.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub async fn add_urls(&self, count: u64) {
-        let mut urls_total = self.urls_total.lock().await;
-        *urls_total += count;
+    pub fn reset_collection_read(&self) {
+        self.collections_read.store(0, Ordering::Relaxed);
     }
 
-    pub async fn report_finished_url(&self) {
-        let mut urls_read = self.urls_read.lock().await;
-        *urls_read += 1;
+    pub fn add_thread(&self) {
+        self.open_threads.fetch_add(1, Ordering::Relaxed);
     }
-    pub async fn reset_urls_read(&self) {
-        let mut urls_read = self.urls_read.lock().await;
-        *urls_read = 0;
+
+    pub fn report_finished_thread(&self) {
+        self.open_threads.fetch_sub(1, Ordering::Relaxed);
     }
-    pub async fn reset_urls_total(&self) {
-        let mut urls_total = self.urls_total.lock().await;
-        *urls_total = 0;
+
+    pub fn add_urls(&self, count: usize) {
+        self.urls_total.fetch_add(count, Ordering::Relaxed);
     }
-    pub async fn reset_all(&mut self, collections_total: usize) {
+
+    pub fn report_finished_url(&self) {
+        self.urls_read.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn reset_urls_read(&self) {
+        self.urls_read.store(0, Ordering::Relaxed);
+    }
+
+    pub fn reset_urls_total(&self) {
+        self.urls_total.store(0, Ordering::Relaxed);
+    }
+
+    pub fn reset_all(&mut self, collections_total: usize) {
         self.collections_total = collections_total;
-        self.reset_collection_read().await;
-        self.reset_urls_read().await;
-        self.reset_urls_total().await;
-        info!("Collections to be read: {}", self.collections_total,);
+        self.reset_collection_read();
+        self.reset_urls_read();
+        self.reset_urls_total();
+        info!("Collections to be read: {}", self.collections_total);
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::Ordering;
 
-    #[tokio::test]
-    async fn test_new_reporter() {
+    #[test]
+    fn test_new_reporter() {
         let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        assert_eq!(*reporter.urls_read.lock().await, 0);
-        assert_eq!(*reporter.urls_total.lock().await, 0);
-        assert_eq!(*reporter.collections_read.lock().await, 0);
+        let reporter = Reporter::new(collections_total);
+        assert_eq!(reporter.urls_read.load(Ordering::Relaxed), 0);
+        assert_eq!(reporter.urls_total.load(Ordering::Relaxed), 0);
+        assert_eq!(reporter.collections_read.load(Ordering::Relaxed), 0);
+        assert_eq!(reporter.open_threads.load(Ordering::Relaxed), 0);
         assert_eq!(reporter.collections_total, collections_total);
         assert!(!reporter.stop_flag.load(Ordering::Relaxed));
     }
 
-    #[tokio::test]
-    async fn test_report_finished_collection() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.report_finished_collection().await;
-        assert_eq!(*reporter.collections_read.lock().await, 1);
+    #[test]
+    fn test_report_finished_collection() {
+        let reporter = Reporter::new(5);
+        reporter.report_finished_collection();
+        assert_eq!(reporter.collections_read.load(Ordering::Relaxed), 1);
     }
 
-    #[tokio::test]
-    async fn test_reset_collection_read() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.report_finished_collection().await;
-        reporter.reset_collection_read().await;
-        assert_eq!(*reporter.collections_read.lock().await, 0);
+    #[test]
+    fn test_reset_collection_read() {
+        let reporter = Reporter::new(5);
+        reporter.report_finished_collection();
+        reporter.reset_collection_read();
+        assert_eq!(reporter.collections_read.load(Ordering::Relaxed), 0);
     }
 
-    #[tokio::test]
-    async fn test_add_urls() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.add_urls(10).await;
-        assert_eq!(*reporter.urls_total.lock().await, 10);
+    #[test]
+    fn test_add_urls() {
+        let reporter = Reporter::new(5);
+        reporter.add_urls(10);
+        assert_eq!(reporter.urls_total.load(Ordering::Relaxed), 10);
     }
 
-    #[tokio::test]
-    async fn test_report_finished_url() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.add_urls(10).await;
-        reporter.report_finished_url().await;
-        assert_eq!(*reporter.urls_read.lock().await, 1);
+    #[test]
+    fn test_report_finished_url() {
+        let reporter = Reporter::new(5);
+        reporter.add_urls(10);
+        reporter.report_finished_url();
+        assert_eq!(reporter.urls_read.load(Ordering::Relaxed), 1);
     }
 
-    #[tokio::test]
-    async fn test_reset_urls_read() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.add_urls(10).await;
-        reporter.report_finished_url().await;
-        reporter.reset_urls_read().await;
-        assert_eq!(*reporter.urls_read.lock().await, 0);
+    #[test]
+    fn test_reset_urls_read() {
+        let reporter = Reporter::new(5);
+        reporter.add_urls(10);
+        reporter.report_finished_url();
+        reporter.reset_urls_read();
+        assert_eq!(reporter.urls_read.load(Ordering::Relaxed), 0);
     }
 
-    #[tokio::test]
-    async fn test_reset_urls_total() {
-        let collections_total = 5;
-        let reporter = Reporter::new(collections_total).await;
-        reporter.add_urls(10).await;
-        reporter.reset_urls_total().await;
-        assert_eq!(*reporter.urls_total.lock().await, 0);
+    #[test]
+    fn test_reset_urls_total() {
+        let reporter = Reporter::new(5);
+        reporter.add_urls(10);
+        reporter.reset_urls_total();
+        assert_eq!(reporter.urls_total.load(Ordering::Relaxed), 0);
     }
 
-    #[tokio::test]
-    async fn test_reset_all() {
-        let collections_total = 5;
-        let mut reporter = Reporter::new(collections_total).await;
-        reporter.add_urls(10).await;
-        reporter.report_finished_url().await;
-        reporter.report_finished_collection().await;
-        reporter.reset_all(3).await;
-        assert_eq!(*reporter.urls_read.lock().await, 0);
-        assert_eq!(*reporter.urls_total.lock().await, 0);
-        assert_eq!(*reporter.collections_read.lock().await, 0);
+    #[test]
+    fn test_add_and_finish_thread() {
+        let reporter = Reporter::new(5);
+        reporter.add_thread();
+        assert_eq!(reporter.open_threads.load(Ordering::Relaxed), 1);
+        reporter.report_finished_thread();
+        assert_eq!(reporter.open_threads.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn test_reset_all() {
+        let mut reporter = Reporter::new(5);
+        reporter.add_urls(10);
+        reporter.report_finished_url();
+        reporter.report_finished_collection();
+        reporter.reset_all(3);
+        assert_eq!(reporter.urls_read.load(Ordering::Relaxed), 0);
+        assert_eq!(reporter.urls_total.load(Ordering::Relaxed), 0);
+        assert_eq!(reporter.collections_read.load(Ordering::Relaxed), 0);
         assert_eq!(reporter.collections_total, 3);
     }
 }

@@ -4,14 +4,14 @@ version = "0.4.5"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.38", features = ["derive"] }
+clap = { version = "4.5.39", features = ["derive"] }
 env_logger = "0.11.6"
 futures = "0.3.31"
 indicatif = "0.17.11"
 log = "0.4.25"
 num_cpus = "1.16.0"
 regex = "1.11.1"
-reqwest = { version = "0.12.12", features = ["stream"] }
+reqwest = { version = "0.12.18", features = ["stream"] }
 sanitize-filename = "0.6.0"
 serde = "1.0.219"
 stac = { version = "0.12.0", features = ["object-store", "object-store-aws"] }

@@ -1,7 +1,7 @@
 pub mod bucket_config;
 pub mod dataset;
 pub mod linz_bucket;
-mod reporter;
+pub mod reporter;
 pub mod utils;
 #[cfg(test)]
 mod tests {

@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 // use std::time::Duration;
 
 // The number of concurrent threads will be limited to the number of CPU cores multiplied by this constant
-pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 50;
+pub const CONCURRENCY_LIMIT_CPU_MULTIPLIER: usize = 4;
 // The number of concurrent threads for collections will be limited to this constant. Each collection will be allowed to spawn 1/this of the allowed concurrent threads.
 
 // #[derive(Debug, Clone)]

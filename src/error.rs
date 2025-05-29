@@ -11,6 +11,8 @@ pub enum MyError {
     StacError(#[from] stac::Error),
     #[error("STAC error: {0}")]
     SendError(#[from] Box<tokio::sync::mpsc::error::SendError<stac::Item>>),
+    #[error("Join error: {0}")]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 impl MyError {

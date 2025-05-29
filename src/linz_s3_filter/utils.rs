@@ -3,7 +3,6 @@ use crate::error::MyError;
 use super::bucket_config::{self};
 use super::dataset::MatchingItems;
 use super::reporter::Reporter;
-use futures::future::join_all;
 use log::debug;
 use regex::Regex;
 use stac::{Assets, Collection, Href, Links, SelfHref};
@@ -126,8 +125,8 @@ pub async fn add_collection_with_spatial_filter(
     let handles: Vec<_> = urls
         .into_iter()
         .map(|url| {
-            let reporter = Arc::clone(reporter);
-            let semaphore = Arc::clone(&semaphore);
+            let reporter = reporter.clone();
+            let semaphore = semaphore.clone();
             tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 reporter.add_thread();
@@ -136,6 +135,7 @@ pub async fn add_collection_with_spatial_filter(
 
                 let result: Result<stac::Item, stac::Error> =
                     stac::io::get_opts(url, options).await;
+                drop(_permit);
                 reporter.report_finished_url();
                 reporter.report_finished_thread();
 
@@ -162,13 +162,16 @@ pub async fn add_collection_with_spatial_filter(
         })
         .collect();
 
-    let results = join_all(handles).await;
+    let mut results = Vec::with_capacity(handles.len());
+    for handle in handles {
+        results.push(handle.await);
+    }
+
     let matching_items: Vec<_> = results
         .into_iter()
         .filter_map(Result::ok)
         .flatten()
         .collect();
-
     reporter.report_finished_collection();
     debug!("Finished processing collection: {}", title);
 
@@ -195,14 +198,15 @@ pub async fn add_collection_without_filters(
     let handles: Vec<_> = urls
         .into_iter()
         .map(|url| {
-            let reporter = Arc::clone(reporter);
-            let semaphore = Arc::clone(&semaphore);
+            let reporter = reporter.clone();
+            let semaphore = semaphore.clone();
             tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
                 reporter.add_thread();
                 debug!("Processing URL: {}", url);
                 let options = bucket_config::get_opts();
                 let result = stac::io::get_opts(url, options).await;
+                drop(_permit);
                 reporter.report_finished_url();
                 reporter.report_finished_thread();
                 result.ok()
@@ -210,7 +214,11 @@ pub async fn add_collection_without_filters(
         })
         .collect();
 
-    let results = join_all(handles).await;
+    let mut results = Vec::with_capacity(handles.len());
+    for handle in handles {
+        results.push(handle.await);
+    }
+
     let matching_items: Vec<_> = results
         .into_iter()
         .filter_map(Result::ok)

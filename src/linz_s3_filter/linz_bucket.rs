@@ -2,7 +2,6 @@ use crate::error::MyError;
 use crate::linz_s3_filter::dataset::BucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
-use futures::future::join_all;
 use log::{debug, info};
 use stac::{Catalog, Collection, Href, Links};
 use std::sync::{atomic::Ordering, Arc};
@@ -48,30 +47,33 @@ impl LinzBucket {
         debug!("Number of permits: {}", permits);
         let semaphore = Arc::new(Semaphore::new(permits));
 
-        let handles: Vec<_> = urls
-            .into_iter()
-            .map(|url| {
-                let semaphore = Arc::clone(&semaphore);
-                tokio::spawn(async move {
-                    let _permit = semaphore.acquire().await.unwrap();
-                    let options = bucket_config::get_opts();
-                    let result: Result<Collection, stac::Error> =
-                        stac::io::get_opts(url, options).await;
-                    match result {
-                        Ok(mut collection) => {
-                            collection.make_links_absolute().unwrap();
-                            Some(collection)
-                        }
-                        Err(e) => {
-                            MyError::from(e).report();
-                            None
-                        }
+        let mut handles = Vec::with_capacity(urls.len());
+        for url in urls {
+            let semaphore = semaphore.clone();
+            let handle = tokio::spawn(async move {
+                let _permit = semaphore.acquire().await.unwrap();
+                let options = bucket_config::get_opts();
+                let result: Result<Collection, stac::Error> =
+                    stac::io::get_opts(url, options).await;
+                drop(_permit);
+                match result {
+                    Ok(mut collection) => {
+                        collection.make_links_absolute().unwrap();
+                        Some(collection)
                     }
-                })
-            })
-            .collect();
+                    Err(e) => {
+                        MyError::from(e).report();
+                        None
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles {
+            results.push(handle.await);
+        }
 
-        let results = join_all(handles).await;
         let collections: Vec<_> = results
             .into_iter()
             .filter_map(Result::ok)
@@ -125,40 +127,28 @@ impl LinzBucket {
         let semaphore = Arc::new(Semaphore::new(
             num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER,
         )); // Limit concurrent threads
-        let futures: Vec<_> = filtered_collections
-            .iter()
-            .map(|collection| {
-                let collection = collection.clone();
-                let reporter = Arc::clone(&reporter);
-                let semaphore = Arc::clone(&semaphore);
+        let mut handles = Vec::with_capacity(filtered_collections.len());
+        for collection in filtered_collections {
+            let collection = collection.clone();
+            let reporter = reporter.clone();
+            let semaphore = semaphore.clone();
+            let handle = tokio::spawn(async move {
+                process_collection(
+                    collection, lon1_opt, lat1_opt, lon2_opt, lat2_opt, &reporter, semaphore,
+                )
+                .await
+            });
 
-                tokio::spawn(async move {
-                    let thread_semaphore = Arc::clone(&semaphore);
-                    let _permit = semaphore.acquire_owned().await.unwrap();
-                    reporter.add_thread();
-
-                    let result = process_collection(
-                        collection,
-                        lon1_opt,
-                        lat1_opt,
-                        lon2_opt,
-                        lat2_opt,
-                        &reporter,
-                        thread_semaphore,
-                    )
-                    .await;
-                    reporter.report_finished_thread();
-                    result
-                })
-            })
-            .collect();
-
-        let results: Vec<_> = join_all(futures)
-            .await
-            .into_iter()
-            .filter_map(|res| res.ok())
-            .flatten()
-            .collect();
+            handles.push(handle);
+        }
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles {
+            results.push(handle.await.unwrap_or_else(|e| {
+                MyError::from(e).report();
+                None
+            }));
+        }
+        let results: Vec<_> = results.into_iter().flatten().collect();
         self.reporter.stop_flag.store(true, Ordering::Relaxed);
         info!("All collections processed");
 

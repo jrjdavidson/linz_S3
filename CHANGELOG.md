@@ -1,6 +1,10 @@
 
 # Changelog
 
+## [0.4.6] - 2025-05-30
+
+- various optimisation and refactoring. still getting occasional lockups.
+
 ## [0.4.5] - 2025-04-09
 
 - limit threads explicitly to avoid crashes.

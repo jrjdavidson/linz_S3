@@ -9,6 +9,8 @@ pub enum MyError {
     DimensionAndCoordinateRange,
     #[error("STAC error: {0}")]
     StacError(#[from] stac::Error),
+    #[error("STAC IO error: {0}")]
+    StacIOError(#[from] stac_io::Error),
     #[error("STAC error: {0}")]
     SendError(#[from] Box<tokio::sync::mpsc::error::SendError<stac::Item>>),
     #[error("Join error: {0}")]

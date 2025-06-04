@@ -14,7 +14,8 @@ regex = "1.11.1"
 reqwest =  "0.12.18" 
 sanitize-filename = "0.6.0"
 serde = "1.0.219"
-stac = { version = "0.12.0", features = ["object-store", "object-store-aws"] }
+stac-io = { git = "https://github.com/jrjdavidson/stac-rs", branch = "main", features = ["store-aws"] }
+stac = { git = "https://github.com/jrjdavidson/stac-rs", branch = "main" }
 stac-extensions = "0.1.0"
 thiserror = "2.0.11"
 tokio = { version = "1.45.1", features = ["rt","rt-multi-thread", "signal"] }

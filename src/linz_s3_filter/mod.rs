@@ -7,10 +7,12 @@ pub mod utils;
 mod tests {
     use super::*;
 
+    use crate::linz_s3_filter::linz_bucket::CollectionTaskContext;
     use reporter::Reporter;
+    use stac::Item;
+    use stac_io::parse_href;
     use std::sync::{Arc, Once};
     use utils::{extract_value_before_m, process_collection};
-
     static INIT: Once = Once::new();
 
     fn init_logger() {
@@ -22,19 +24,27 @@ mod tests {
     async fn test_process_collection() {
         init_logger();
         use stac::Collection;
-        let item = stac::read("tests/data/simple-item.json").unwrap();
+        let (store, path) = parse_href("tests/data/simple-item.json").unwrap();
+        let item: Item = store.get(path).await.unwrap();
+
         let mut collection = Collection::new_from_item("an-id", "a description", &item);
         collection.title = Some("Test Collection".to_string());
+
+        // Create a local object store
+
         let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
         let reporter = Arc::new(Reporter::new(1));
         let result = process_collection(
-            collection,
+            CollectionTaskContext {
+                collection,
+                store,
+                reporter,
+                semaphore,
+            },
             Some(172.93),
             Some(1.35),
             None,
             None,
-            &reporter,
-            semaphore,
         )
         .await;
 

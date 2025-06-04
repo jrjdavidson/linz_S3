@@ -1,13 +1,9 @@
-use crate::error::MyError;
+use crate::{error::MyError, linz_s3_filter::linz_bucket::CollectionTaskContext};
 
-use super::bucket_config::{self};
 use super::dataset::MatchingItems;
-use super::reporter::Reporter;
 use log::debug;
 use regex::Regex;
-use stac::{Assets, Collection, Href, Links, SelfHref};
-use std::sync::Arc;
-use tokio::sync::Semaphore;
+use stac::{Assets, Collection, Links, SelfHref};
 
 pub fn get_coordinate_from_dimension(
     lat: f64,
@@ -58,13 +54,11 @@ pub async fn get_hrefs(results: Vec<MatchingItems>) -> Vec<(Vec<String>, String)
 }
 
 pub async fn process_collection(
-    collection: Collection,
+    ctx: CollectionTaskContext,
     lon1_opt: Option<f64>,
     lat1_opt: Option<f64>,
     lon2_opt: Option<f64>,
     lat2_opt: Option<f64>,
-    reporter: &Arc<Reporter>,
-    semaphore: Arc<Semaphore>,
 ) -> Option<MatchingItems> {
     if let (Some(lon1), Some(lat1)) = (lon1_opt, lat1_opt) {
         let (lon_min, lon_max, lat_min, lat_max) =
@@ -79,22 +73,20 @@ pub async fn process_collection(
                 (lon1, lon1, lat1, lat1)
             };
 
-        for bbox in &collection.extent.spatial.bbox {
+        for bbox in &ctx.collection.extent.spatial.bbox {
             if bbox.ymin() <= lat_max
                 && bbox.ymax() >= lat_min
                 && bbox.xmin() <= lon_max
                 && bbox.xmax() >= lon_min
             {
-                return add_collection_with_spatial_filter(
-                    collection, lon_min, lat_min, lon_max, lat_max, reporter, semaphore,
-                )
-                .await;
+                return add_collection_with_spatial_filter(ctx, lon_min, lat_min, lon_max, lat_max)
+                    .await;
             }
         }
-        reporter.report_finished_collection();
+        ctx.reporter.report_finished_collection();
         None
     } else {
-        add_collection_without_filters(collection, reporter, semaphore).await
+        add_collection_without_filters(ctx).await
     }
 }
 
@@ -109,58 +101,55 @@ pub fn extract_value_before_m(text: &str) -> f64 {
 }
 
 pub async fn add_collection_with_spatial_filter(
-    collection: Collection,
+    ctx: CollectionTaskContext,
+
     lon_min: f64,
     lat_min: f64,
     lon_max: f64,
     lat_max: f64,
-    reporter: &Arc<Reporter>,
-    semaphore: Arc<Semaphore>,
 ) -> Option<MatchingItems> {
-    let title = collection.title.clone().unwrap_or_default();
-    let urls = extract_urls(&collection);
+    let title = ctx.collection.title.clone().unwrap_or_default();
+    let urls = extract_urls(&ctx.collection);
 
-    reporter.add_urls(urls.len());
+    ctx.reporter.add_urls(urls.len());
 
-    let handles: Vec<_> = urls
-        .into_iter()
-        .map(|url| {
-            let reporter = reporter.clone();
-            let semaphore = semaphore.clone();
-            tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
-                reporter.add_thread();
-                debug!("Processing URL: {}", url);
-                let options = bucket_config::get_opts();
+    let mut handles = Vec::with_capacity(urls.len());
+    for url in urls {
+        let reporter = ctx.reporter.clone();
+        let semaphore = ctx.semaphore.clone();
+        let store = ctx.store.clone();
+        let handle = tokio::spawn(async move {
+            let permit = semaphore.acquire().await.unwrap();
 
-                let result: Result<stac::Item, stac::Error> =
-                    stac::io::get_opts(url, options).await;
-                drop(_permit);
-                reporter.report_finished_url();
-                reporter.report_finished_thread();
+            reporter.add_thread();
+            debug!("Processing URL: {}", url);
+            let result: Result<stac::Item, stac_io::Error> = store.get(url).await;
+            drop(permit);
+            reporter.report_finished_url();
+            reporter.report_finished_thread();
 
-                match result {
-                    Ok(item) => {
-                        let matches = item.bbox.iter().any(|bbox| {
-                            bbox.ymin() <= lat_max
-                                && bbox.ymax() >= lat_min
-                                && bbox.xmin() <= lon_max
-                                && bbox.xmax() >= lon_min
-                        });
-                        if matches {
-                            Some(item)
-                        } else {
-                            None
-                        }
-                    }
-                    Err(e) => {
-                        MyError::from(e).report();
+            match result {
+                Ok(item) => {
+                    let matches = item.bbox.iter().any(|bbox| {
+                        bbox.ymin() <= lat_max
+                            && bbox.ymax() >= lat_min
+                            && bbox.xmin() <= lon_max
+                            && bbox.xmax() >= lon_min
+                    });
+                    if matches {
+                        Some(item)
+                    } else {
                         None
                     }
                 }
-            })
-        })
-        .collect();
+                Err(e) => {
+                    MyError::from(e).report();
+                    None
+                }
+            }
+        });
+        handles.push(handle);
+    }
 
     let mut results = Vec::with_capacity(handles.len());
     for handle in handles {
@@ -172,7 +161,7 @@ pub async fn add_collection_with_spatial_filter(
         .filter_map(Result::ok)
         .flatten()
         .collect();
-    reporter.report_finished_collection();
+    ctx.reporter.report_finished_collection();
     debug!("Finished processing collection: {}", title);
 
     if !matching_items.is_empty() {
@@ -185,34 +174,30 @@ pub async fn add_collection_with_spatial_filter(
     }
 }
 
-pub async fn add_collection_without_filters(
-    collection: Collection,
-    reporter: &Arc<Reporter>,
-    semaphore: Arc<Semaphore>,
-) -> Option<MatchingItems> {
-    let title = collection.title.clone().unwrap_or_default();
-    let urls = extract_urls(&collection);
+pub async fn add_collection_without_filters(ctx: CollectionTaskContext) -> Option<MatchingItems> {
+    let title = ctx.collection.title.clone().unwrap_or_default();
+    let urls = extract_urls(&ctx.collection);
 
-    reporter.add_urls(urls.len());
+    ctx.reporter.add_urls(urls.len());
 
-    let handles: Vec<_> = urls
-        .into_iter()
-        .map(|url| {
-            let reporter = reporter.clone();
-            let semaphore = semaphore.clone();
-            tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
-                reporter.add_thread();
-                debug!("Processing URL: {}", url);
-                let options = bucket_config::get_opts();
-                let result = stac::io::get_opts(url, options).await;
-                drop(_permit);
-                reporter.report_finished_url();
-                reporter.report_finished_thread();
-                result.ok()
-            })
-        })
-        .collect();
+    let mut handles = Vec::with_capacity(urls.len());
+    for url in urls {
+        let reporter = ctx.reporter.clone();
+        let semaphore = ctx.semaphore.clone();
+        let store = ctx.store.clone();
+        let handle = tokio::spawn(async move {
+            let permit = semaphore.acquire().await.unwrap();
+
+            reporter.add_thread();
+            debug!("Processing URL: {}", url);
+            let result = store.get(url).await;
+            drop(permit);
+            reporter.report_finished_url();
+            reporter.report_finished_thread();
+            result.ok()
+        });
+        handles.push(handle);
+    }
 
     let mut results = Vec::with_capacity(handles.len());
     for handle in handles {
@@ -225,7 +210,7 @@ pub async fn add_collection_without_filters(
         .flatten()
         .collect();
 
-    reporter.report_finished_collection();
+    ctx.reporter.report_finished_collection();
 
     if !matching_items.is_empty() {
         Some(MatchingItems {
@@ -243,10 +228,7 @@ fn extract_urls(collection: &Collection) -> Vec<String> {
         .iter()
         .filter_map(|link| {
             if link.is_item() {
-                match &link.href {
-                    Href::Url(url) => Some(url.to_string()),
-                    Href::String(string) => Some(string.to_string()),
-                }
+                Some(link.href.clone())
             } else {
                 None
             }
@@ -259,6 +241,7 @@ mod tests {
     use std::path::Path;
 
     use stac::Item;
+    use stac_io::parse_href;
 
     use super::*;
 
@@ -309,18 +292,23 @@ mod tests {
         let original_dir = env::current_dir().expect("Failed to get current directory");
         let new_dir = Path::new("tests/data/");
         env::set_current_dir(new_dir).expect("Failed to change directory");
-        let collection: Collection = stac::read("collection.json").unwrap();
+        let (store, path) = parse_href("collection.json").unwrap();
+
+        let collection: Collection = store.get(path).await.unwrap();
 
         let reporter = Arc::new(Reporter::new(1));
         let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
         let result = process_collection(
-            collection,
+            CollectionTaskContext {
+                collection,
+                store,
+                reporter,
+                semaphore,
+            },
             Some(172.93),
             Some(1.35),
             None,
             None,
-            &reporter,
-            semaphore,
         )
         .await;
         assert!(result.is_some());

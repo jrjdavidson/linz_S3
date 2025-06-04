@@ -3,58 +3,56 @@ use crate::linz_s3_filter::dataset::BucketName;
 use crate::linz_s3_filter::reporter::Reporter;
 use crate::linz_s3_filter::utils::{get_hrefs, process_collection};
 use log::{debug, info};
-use stac::{Catalog, Collection, Href, Links};
+use stac::{Catalog, Collection, Links};
+use stac_io::StacStore;
 use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::Semaphore;
 use tokio::time::{self, Duration};
 
-use crate::linz_s3_filter::bucket_config::{self, CONCURRENCY_LIMIT_CPU_MULTIPLIER};
+use crate::linz_s3_filter::bucket_config::{self, get_concurrency_limit};
 
 pub struct LinzBucket {
+    pub store: StacStore,
     pub collections: Vec<Collection>,
     pub filtered_collections: Option<Vec<Collection>>,
     pub reporter: Reporter, // Use Mutex for interior mutability
 }
 
 impl LinzBucket {
-    pub async fn initialise_catalog(dataset: BucketName) -> Result<Self, stac::Error> {
+    pub async fn initialise_catalog(dataset: BucketName) -> Result<Self, MyError> {
         info!("Initialising Catalog...");
         let catalog_url = format!("{}/catalog.json", dataset.as_str());
         let options = bucket_config::get_opts();
 
-        let mut catalog: Catalog = stac::io::get_opts(catalog_url, options).await?;
+        let (store, _) = stac_io::parse_href_opts(&catalog_url, options)?;
+
+        let mut catalog: Catalog = store.get(&catalog_url).await?;
         info!("ID: {}", catalog.id);
         info!("Title: {}", catalog.title.as_deref().unwrap_or("N/A"));
         info!("Description: {}", catalog.description);
         catalog.make_links_absolute().unwrap();
+        let links = catalog.links();
+        let mut urls = Vec::with_capacity(links.len());
 
-        let urls: Vec<String> = catalog
-            .links()
-            .iter()
-            .filter_map(|link| {
-                if link.is_child() {
-                    match &link.href {
-                        Href::Url(url) => Some(url.to_string()),
-                        Href::String(s) => Some(s.to_string()),
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
+        for link in links {
+            if link.is_child() {
+                urls.push(link.href.clone());
+            }
+        }
 
-        let permits = num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER;
+        let permits = get_concurrency_limit();
         debug!("Number of permits: {}", permits);
         let semaphore = Arc::new(Semaphore::new(permits));
 
         let mut handles = Vec::with_capacity(urls.len());
         for url in urls {
+            let thread_store = store.clone();
+
             let semaphore = semaphore.clone();
             let handle = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
-                let options = bucket_config::get_opts();
-                let result: Result<Collection, stac::Error> =
-                    stac::io::get_opts(url, options).await;
+                let result: Result<Collection, stac_io::Error> =
+                    thread_store.clone().get(url).await;
                 drop(_permit);
                 match result {
                     Ok(mut collection) => {
@@ -87,6 +85,7 @@ impl LinzBucket {
         );
 
         let bucket = LinzBucket {
+            store,
             collections,
             filtered_collections: None,
             reporter: Reporter::new(collections_total),
@@ -124,19 +123,17 @@ impl LinzBucket {
 
         self.start_reporting(Arc::clone(&reporter));
 
-        let semaphore = Arc::new(Semaphore::new(
-            num_cpus::get() * CONCURRENCY_LIMIT_CPU_MULTIPLIER,
-        )); // Limit concurrent threads
+        let semaphore = Arc::new(Semaphore::new(get_concurrency_limit())); // Limit concurrent threads
         let mut handles = Vec::with_capacity(filtered_collections.len());
         for collection in filtered_collections {
-            let collection = collection.clone();
-            let reporter = reporter.clone();
-            let semaphore = semaphore.clone();
+            let ctx = CollectionTaskContext {
+                collection: collection.clone(),
+                store: self.store.clone(),
+                reporter: reporter.clone(),
+                semaphore: semaphore.clone(),
+            };
             let handle = tokio::spawn(async move {
-                process_collection(
-                    collection, lon1_opt, lat1_opt, lon2_opt, lat2_opt, &reporter, semaphore,
-                )
-                .await
+                process_collection(ctx, lon1_opt, lat1_opt, lon2_opt, lat2_opt).await
             });
 
             handles.push(handle);
@@ -200,4 +197,12 @@ impl LinzBucket {
             .collect();
         self.filtered_collections = Some(filtered_collections);
     }
+}
+
+#[derive(Clone)]
+pub struct CollectionTaskContext {
+    pub collection: Collection,
+    pub store: StacStore,
+    pub reporter: Arc<Reporter>,
+    pub semaphore: Arc<Semaphore>,
 }

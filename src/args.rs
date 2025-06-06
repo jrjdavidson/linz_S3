@@ -19,7 +19,7 @@ pub struct Cli {
     pub spatial_filter: Option<SpatialFilter>,
     /// Download the tiles instead of just printing the URLs. Can be used with --cache to download to a specific directory, otherwise will download to the current directory regardless of the presence of the file in the current directory.
     #[arg(short, long)]
-    pub download: bool,
+    pub disable_download: bool,
     /// Cache directory for downloaded tiles.
     #[arg(short, long, value_parser = folder_parser(), requires = "download")]
     pub cache: Option<String>,
@@ -44,6 +44,9 @@ pub struct Cli {
     /// Set the log level (e.g., error, warn, info, debug, trace).
     #[arg(short, long, default_value = "info", value_parser = log_level_parser())]
     pub log_level: String,
+    /// Make go brrrr. Will spawn multiple threads to download tiles concurrently by the provided multiplier. If not provided, the default is 1 thread per CPU core.
+    #[arg(short, long)]
+    pub thread_multiplier: Option<usize>,
 }
 
 #[derive(Subcommand)]

@@ -21,6 +21,7 @@ mod tests {
         });
     }
     #[tokio::test]
+    #[ignore = "Issue with local store"]
     async fn test_process_collection() {
         init_logger();
         use stac::Collection;

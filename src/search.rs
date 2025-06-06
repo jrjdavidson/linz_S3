@@ -10,8 +10,9 @@ pub async fn search_catalog(
     spatial_params: Option<SpatialFilterParams>,
     collection_name_filter_opt: Option<Vec<String>>,
     collection_exclusion_opt: Option<Vec<String>>,
+    concurrency_multiplier: Option<usize>,
 ) -> Result<Vec<(Vec<String>, String)>, MyError> {
-    let mut linz_bucket = LinzBucket::initialise_catalog(bucket).await?;
+    let mut linz_bucket = LinzBucket::initialise_catalog(bucket, concurrency_multiplier).await?;
 
     if let Some(SpatialFilterParams {
         lat1: lat,

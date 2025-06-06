@@ -26,6 +26,7 @@ async fn main() {
         spatial_filter_params,
         args.include_collection_name,
         args.exclude_collection_name,
+        args.thread_multiplier,
     )
     .await;
     match tile_list {
@@ -44,7 +45,7 @@ async fn main() {
                 }
                 1 => {
                     info!("Exactly 1 dataset found, processing...");
-                    process_tile_list(&tile_list, 0, args.download, cache_path_opt).await;
+                    process_tile_list(&tile_list, 0, !args.disable_download, cache_path_opt).await;
                 }
                 _ => {
                     info!("{} datasets found.", tile_list.len());
@@ -57,8 +58,13 @@ async fn main() {
                                 index, &tile_list[index].1
                             );
 
-                            process_tile_list(&tile_list, index, args.download, cache_path_opt)
-                                .await;
+                            process_tile_list(
+                                &tile_list,
+                                index,
+                                !args.disable_download,
+                                cache_path_opt,
+                            )
+                            .await;
                         } else {
                             eprintln!("Error: Index {} is out of bounds. There are only {} datasets available.", index, tile_list.len());
                         }
@@ -78,15 +84,20 @@ async fn main() {
                         process_tile_list(
                             &tile_list,
                             index_of_longest,
-                            args.download,
+                            !args.disable_download,
                             cache_path_opt,
                         )
                         .await;
                     } else if args.by_all {
                         info!("Automatically picked all datasets.");
                         for (index, _) in tile_list.iter().enumerate() {
-                            process_tile_list(&tile_list, index, args.download, cache_path_opt)
-                                .await;
+                            process_tile_list(
+                                &tile_list,
+                                index,
+                                !args.disable_download,
+                                cache_path_opt,
+                            )
+                            .await;
                         }
                     } else {
                         loop {
@@ -115,7 +126,7 @@ async fn main() {
                                     process_tile_list(
                                         &tile_list,
                                         index,
-                                        args.download,
+                                        !args.disable_download,
                                         cache_path_opt,
                                     )
                                     .await;

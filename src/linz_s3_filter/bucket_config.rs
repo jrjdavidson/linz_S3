@@ -9,41 +9,16 @@ use std::sync::OnceLock;
 
 static CONCURRENCY_LIMIT_CPU_MULTIPLIER: OnceLock<usize> = OnceLock::new();
 
-pub fn set_concurrency_multiplier(value: usize) {
-    let _ = CONCURRENCY_LIMIT_CPU_MULTIPLIER.set(value);
+pub fn set_concurrency_multiplier(value: Option<usize>) {
+    if let Some(value) = value {
+        let _ = CONCURRENCY_LIMIT_CPU_MULTIPLIER.set(value);
+    }
 }
 
 pub fn get_concurrency_limit() -> usize {
-    let multiplier = *CONCURRENCY_LIMIT_CPU_MULTIPLIER.get().unwrap_or(&1000);
+    let multiplier = *CONCURRENCY_LIMIT_CPU_MULTIPLIER.get().unwrap_or(&1);
     num_cpus::get() * multiplier
 }
-
-// The number of concurrent threads for collections will be limited to this constant. Each collection will be allowed to spawn 1/this of the allowed concurrent threads.
-
-// #[derive(Debug, Clone)]
-// pub struct BackoffConfig {
-//     pub init_backoff: Duration,
-//     pub max_backoff: Duration,
-//     pub base: f64,
-// }
-
-// #[derive(Debug, Clone)]
-// pub struct RetryConfig {
-//     pub backoff: BackoffConfig,
-//     pub max_retries: usize,
-//     pub retry_timeout: Duration,
-// }
-
-// const BACKOFF_CONFIG: BackoffConfig = BackoffConfig {
-//     init_backoff: Duration::from_millis(500), // 500 milliseconds
-//     max_backoff: Duration::from_secs(30),     // 30 seconds
-//     base: 5.0,                                // Multiplier of 2.0
-// };
-// const RETRY_CONFIG: RetryConfig = RetryConfig {
-//     max_retries: 3,
-//     retry_timeout: Duration::from_secs(180), // 3 minutes
-//     backoff: BACKOFF_CONFIG,
-// };
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigFile {

@@ -9,7 +9,9 @@ use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::Semaphore;
 use tokio::time::{self, Duration};
 
-use crate::linz_s3_filter::bucket_config::{self, get_concurrency_limit};
+use crate::linz_s3_filter::bucket_config::{
+    get_concurrency_limit, get_opts, set_concurrency_multiplier,
+};
 
 pub struct LinzBucket {
     pub store: StacStore,
@@ -19,10 +21,13 @@ pub struct LinzBucket {
 }
 
 impl LinzBucket {
-    pub async fn initialise_catalog(dataset: BucketName) -> Result<Self, MyError> {
+    pub async fn initialise_catalog(
+        dataset: BucketName,
+        concurrency_multiplier: Option<usize>,
+    ) -> Result<Self, MyError> {
         info!("Initialising Catalog...");
         let catalog_url = format!("{}/catalog.json", dataset.as_str());
-        let options = bucket_config::get_opts();
+        let options = get_opts();
 
         let (store, _) = stac_io::parse_href_opts(&catalog_url, options)?;
 
@@ -39,20 +44,19 @@ impl LinzBucket {
                 urls.push(link.href.clone());
             }
         }
-
+        set_concurrency_multiplier(concurrency_multiplier);
         let permits = get_concurrency_limit();
         debug!("Number of permits: {}", permits);
         let semaphore = Arc::new(Semaphore::new(permits));
 
         let mut handles = Vec::with_capacity(urls.len());
         for url in urls {
-            let thread_store = store.clone();
+            let store = store.clone();
 
             let semaphore = semaphore.clone();
             let handle = tokio::spawn(async move {
                 let _permit = semaphore.acquire().await.unwrap();
-                let result: Result<Collection, stac_io::Error> =
-                    thread_store.clone().get(url).await;
+                let result: Result<Collection, stac_io::Error> = store.clone().get(url).await;
                 drop(_permit);
                 match result {
                     Ok(mut collection) => {
@@ -94,8 +98,9 @@ impl LinzBucket {
         Ok(bucket)
     }
 
-    fn start_reporting(&self, reporter: Arc<Reporter>) {
+    fn start_reporting(&self, reporter: Arc<Reporter>, semaphore: Arc<Semaphore>) {
         tokio::spawn(async move {
+            let _permit = semaphore.acquire().await.unwrap();
             reporter.add_thread();
             let mut interval = time::interval(Duration::from_secs(1));
 
@@ -121,9 +126,9 @@ impl LinzBucket {
         self.reporter.reset_all(filtered_collections.len());
         let reporter = Arc::new(self.reporter.clone());
 
-        self.start_reporting(Arc::clone(&reporter));
-
         let semaphore = Arc::new(Semaphore::new(get_concurrency_limit())); // Limit concurrent threads
+        self.start_reporting(Arc::clone(&reporter), semaphore.clone());
+
         let mut handles = Vec::with_capacity(filtered_collections.len());
         for collection in filtered_collections {
             let ctx = CollectionTaskContext {

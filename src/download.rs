@@ -1,5 +1,5 @@
 use futures::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{debug, info};
 use reqwest::get;
 use sanitize_filename::sanitize;
@@ -19,12 +19,8 @@ pub async fn process_tile_list(
     let mut tasks = vec![];
     let mut cache_count = 0;
     if download {
-        let progress_bar = ProgressBar::new(tile_list[index].0.len() as u64);
-        progress_bar.set_style(ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} files downloaded. Time left :{eta}")
-            .unwrap()
-            .progress_chars("#>-"));
-        progress_bar.enable_steady_tick(Duration::from_millis(100));
+        let multiprogressbar = MultiProgress::new();
+
         info!("Starting downloads...");
 
         // Create a channel to signal cancellation
@@ -37,8 +33,9 @@ pub async fn process_tile_list(
         });
 
         for tile_url in &tile_list[index].0 {
+            let multiprogressbar = multiprogressbar.clone();
             let url = tile_url.to_string();
-            let progress_bar_clone = progress_bar.clone();
+
             let subfolder = sanitize(tile_list[index].1.clone());
             let output_folder = cache_opt
                 .clone()
@@ -61,8 +58,7 @@ pub async fn process_tile_list(
             // Create the subfolder if it doesn't exist
             fs::create_dir_all(&output_folder).await.unwrap();
             tasks.push(task::spawn(async move {
-                download_file(&url, &progress_bar_clone, current_path).await;
-                progress_bar_clone.inc(1);
+                download_file(&url, current_path, multiprogressbar).await;
             }));
         }
         let download_count = tasks.len();
@@ -74,7 +70,6 @@ pub async fn process_tile_list(
                     task.await.unwrap();
                 }
             } => {
-                progress_bar.finish_with_message("Process complete");
                 info!(
                     "{} files found in cache, {} files downloaded",
                     cache_count, download_count
@@ -93,18 +88,39 @@ pub async fn process_tile_list(
     }
 }
 
-async fn download_file(url: &str, progress_bar: &ProgressBar, output_file: PathBuf) {
-    let response = get(url).await;
-    let mut file = File::create(output_file).await.unwrap();
-
-    match response {
+async fn download_file(url: &str, output_file: PathBuf, multi_progress: MultiProgress) {
+    match get(url).await {
         Ok(response) => {
+            let total_size = response.content_length().unwrap_or(0);
+
+            let pb = multi_progress.add(ProgressBar::new(total_size));
+            pb.set_style(
+                ProgressStyle::default_bar()
+                    .template(
+                        "{spinner:.green} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta}) {msg}",
+                    )
+                    .unwrap()
+                    .progress_chars("#>-"),
+            );
+            let path_str = Path::new(&url)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            pb.set_message(path_str.clone());
+            pb.enable_steady_tick(Duration::from_millis(100));
+
+            let mut file = File::create(output_file).await.unwrap();
             let mut stream = response.bytes_stream();
+
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.unwrap();
                 file.write_all(&chunk).await.unwrap();
-                progress_bar.tick();
+                pb.inc(chunk.len() as u64);
             }
+
+            pb.finish_with_message(format!("{} - Done", path_str));
         }
         Err(e) => {
             eprintln!("Error downloading {}: {}", url, e);

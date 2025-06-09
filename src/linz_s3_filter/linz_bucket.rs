@@ -9,15 +9,14 @@ use std::sync::{atomic::Ordering, Arc};
 use tokio::sync::Semaphore;
 use tokio::time::{self, Duration};
 
-use crate::linz_s3_filter::bucket_config::{
-    get_concurrency_limit, get_opts, set_concurrency_multiplier,
-};
+use crate::linz_s3_filter::bucket_config::get_opts;
 
 pub struct LinzBucket {
     pub store: StacStore,
     pub collections: Vec<Collection>,
     pub filtered_collections: Option<Vec<Collection>>,
     pub reporter: Reporter, // Use Mutex for interior mutability
+    pub permits: usize,
 }
 
 impl LinzBucket {
@@ -44,8 +43,7 @@ impl LinzBucket {
                 urls.push(link.href.clone());
             }
         }
-        set_concurrency_multiplier(concurrency_multiplier);
-        let permits = get_concurrency_limit();
+        let permits = concurrency_multiplier.unwrap_or(1) * num_cpus::get();
         debug!("Number of permits: {}", permits);
         let semaphore = Arc::new(Semaphore::new(permits));
 
@@ -93,6 +91,7 @@ impl LinzBucket {
             collections,
             filtered_collections: None,
             reporter: Reporter::new(collections_total),
+            permits,
         };
 
         Ok(bucket)
@@ -125,8 +124,7 @@ impl LinzBucket {
             .unwrap_or(&self.collections);
         self.reporter.reset_all(filtered_collections.len());
         let reporter = Arc::new(self.reporter.clone());
-
-        let semaphore = Arc::new(Semaphore::new(get_concurrency_limit())); // Limit concurrent threads
+        let semaphore = Arc::new(Semaphore::new(self.permits)); // Limit concurrent threads
         self.start_reporting(Arc::clone(&reporter), semaphore.clone());
 
         let mut handles = Vec::with_capacity(filtered_collections.len());

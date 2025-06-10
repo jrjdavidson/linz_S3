@@ -13,6 +13,7 @@ fn test_latlonsearch() {
     let lon2 = "175.7762";
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("coordinate")
         .arg(lat1)
         .arg(lon1)
@@ -30,7 +31,8 @@ fn test_latlonsearch() {
 fn test_areasearch() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-f")
+        .arg("--disable-download")
+        .arg("--by-first-index")
         .arg("area")
         .arg("-45.0")
         .arg("167")
@@ -96,6 +98,7 @@ fn test_missing_arguments_for_coordinatesearch() {
 fn test_invalid_latlon_values() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("coordinate")
         .arg("invalid_lat")
         .arg("invalid_lon");
@@ -113,6 +116,7 @@ fn test_invalid_latlon_values() {
 fn test_empty_search_results() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("coordinate")
         .arg("-90.0")
         .arg("-180.0")
@@ -133,6 +137,7 @@ fn test_empty_search_results() {
 fn test_all_datasets() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("--by-all")
         // make test more resilient by filtering by name
         .arg("--include-collection-name")
@@ -151,7 +156,9 @@ fn test_all_datasets() {
 fn test_invalid_args() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-fs")
+        .arg("--disable-download")
+        .arg("--by-first-index")
+        .arg("-s")
         .arg("coordinate")
         .arg("-90.0")
         .arg("-180.0")
@@ -174,7 +181,6 @@ fn test_valid_search_with_download() {
 
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("--download")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("170.8860")
@@ -205,6 +211,7 @@ fn test_valid_search_with_download() {
 fn test_valid_search_with_condition() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("--by-first-index")
         .arg("coordinate")
         .arg("-45.9006")
@@ -222,7 +229,8 @@ fn test_valid_search_with_index() {
     // could improve check
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-n")
+        .arg("--disable-download")
+        .arg("--include-collection-name")
         .arg("Southland LiDAR 1m")
         .arg("--by-index")
         .arg("1") // Specify the index you want to test
@@ -241,6 +249,7 @@ fn test_valid_search_with_index() {
 fn test_valid_search_with_missing_index() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("--by-index") // No specific index provided, should default to 0
         .arg("45.5")
         .arg("coordinate")
@@ -258,6 +267,7 @@ fn test_valid_search_with_missing_index() {
 fn test_invalid_search_with_out_of_bounds_index() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
+        .arg("--disable-download")
         .arg("--by-index")
         .arg(usize::MAX.to_string()) // Specify an out-of-bounds index
         .arg("coordinate")
@@ -274,7 +284,8 @@ fn test_invalid_search_with_out_of_bounds_index() {
 fn test_valid_search_with_conditon_and_one_result() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-n")
+        .arg("--disable-download")
+        .arg("--include-collection-name")
         .arg("Southland LiDAR 1m DEM")
         .arg("coordinate")
         .arg("-45.9006")
@@ -291,9 +302,10 @@ fn test_valid_search_with_conditon_and_one_result() {
 fn test_valid_search_with_conditon_and_mulitple_result() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-n")
+        .arg("--disable-download")
+        .arg("--include-collection-name")
         .arg("Southland")
-        .arg("-s")
+        .arg("--by-size")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("160.8860")
@@ -310,11 +322,12 @@ fn test_valid_search_with_conditon_and_mulitple_result() {
 fn test_valid_search_with_multiple_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-n")
+        .arg("--disable-download")
+        .arg("--include-collection-name")
         .arg("Southland LiDAR 1m DEM (2020-2024)")
-        .arg("-n")
+        .arg("--include-collection-name")
         .arg("Canterbury LiDAR 1m DSM (2016-2017)")
-        .arg("-s")
+        .arg("--by-size")
         .arg("coordinate")
         .arg("-45.9006")
         .arg("160.8860")
@@ -332,9 +345,10 @@ fn test_valid_search_with_multiple_filters() {
 fn test_valid_search_with_exclusion_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-x")
+        .arg("--disable-download")
+        .arg("--exclude-collection-name")
         .arg("Hillshade")
-        .arg("-s")
+        .arg("--by-size")
         .arg("coordinate")
         .arg("-45")
         .arg("167");
@@ -349,12 +363,13 @@ fn test_valid_search_with_exclusion_filters() {
 fn test_valid_search_with_exclusion_inclusion_filters() {
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("-n")
+        .arg("--disable-download")
+        .arg("--include-collection-name")
         .arg("Southland LiDAR 1m DEM (2020-2024)")
-        .arg("-n")
+        .arg("--include-collection-name")
         .arg("Canterbury LiDAR 1m DSM (2016-2017)")
-        .arg("-s")
-        .arg("-x")
+        .arg("--by-size")
+        .arg("--exclude-collection-name")
         .arg("DEM")
         .arg("coordinate")
         .arg("-45.9006")
@@ -376,10 +391,9 @@ fn test_valid_search_with_download_and_cache() {
     let cache_path = cache_dir.path();
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("--download")
-        .arg("-c")
+        .arg("--cache")
         .arg(cache_path)
-        .arg("-n")
+        .arg("--include-collection-name")
         .arg("Southland")
         .arg("coordinate")
         .arg("-45.9006")
@@ -401,8 +415,7 @@ fn test_valid_search_with_download_and_cache() {
     check_folder_content(&files, file_number);
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("--download")
-        .arg("-n")
+        .arg("--include-collection-name")
         .arg("Southland")
         .arg("coordinate")
         .arg("-45.9006")
@@ -431,8 +444,7 @@ fn test_valid_search_with_download_and_cache() {
     // Run the command again
     let mut cmd = Command::cargo_bin("linz_s3").unwrap();
     cmd.arg("elevation")
-        .arg("--download")
-        .arg("-n")
+        .arg("--include-collection-name")
         .arg("Southland")
         .arg("coordinate")
         .arg("-45.9006")

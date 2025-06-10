@@ -1,5 +1,5 @@
 use crate::linz_s3_filter::dataset;
-use clap::{builder::ValueParser, command, Parser, Subcommand};
+use clap::{builder::ValueParser, command, Args, Parser, Subcommand};
 
 /// Enum for search mode.
 #[derive(Parser)]
@@ -17,12 +17,8 @@ pub struct Cli {
     /// Search mode: "coordinate" for lat/lon range, "area" for search by approx height/width in m.
     #[command(subcommand)]
     pub spatial_filter: Option<SpatialFilter>,
-    /// Download the tiles instead of just printing the URLs. Can be used with --cache to download to a specific directory, otherwise will download to the current directory regardless of the presence of the file in the current directory.
-    #[arg(short, long)]
-    pub disable_download: bool,
-    /// Cache directory for downloaded tiles.
-    #[arg(short, long, value_parser = folder_parser(), requires = "download")]
-    pub cache: Option<String>,
+    #[command(flatten)]
+    pub download_args: DownloadArgs,
     /// Automatically select the first dataset listed. Datesets are ordered by resolution first, and within each resolution level, alphabetically.
     #[arg(short = 'f', group = "auto_select", long)]
     pub by_first_index: bool,
@@ -47,6 +43,16 @@ pub struct Cli {
     /// Make go brrrr. Will spawn multiple threads to download tiles concurrently by the provided multiplier. If not provided, the default is 1 thread per CPU core.
     #[arg(short, long)]
     pub thread_multiplier: Option<usize>,
+}
+#[derive(Args)]
+#[group(multiple = false)]
+pub struct DownloadArgs {
+    /// Just print the URLs. Cannot be used with --cache.
+    #[arg(short, long)]
+    pub disable_download: bool,
+    /// Cache directory for downloaded tiles.
+    #[arg(short, long, value_parser = folder_parser())]
+    pub cache: Option<String>,
 }
 
 #[derive(Subcommand)]

@@ -2,30 +2,51 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use linz_s3::linz_s3_filter::{dataset, linz_bucket::LinzBucket};
-use log::info;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, time::sleep};
 
 async fn empty_collections(multiplier: &usize) {
     let dataset = dataset::BucketName::Imagery;
-    let linz_bucket = LinzBucket::initialise_catalog(dataset, Some(*multiplier)).await;
     let lat = 40.9006;
     let lon = 174.8860;
-    let _tiles = linz_bucket
-        .unwrap()
-        .get_tiles(Some(lat), Some(lon), None, None)
-        .await;
+    get_tiles_from_lat_lon(lat, lon, dataset, multiplier).await;
 }
 async fn southland_collections(multiplier: &usize) {
-    info!("Running empty_collections with multiplier: {}", multiplier);
-
     let dataset = dataset::BucketName::Elevation;
-    let linz_bucket = LinzBucket::initialise_catalog(dataset, Some(*multiplier)).await;
     let lat = -45.;
     let lon = 170.;
-    let _tiles = linz_bucket
-        .unwrap()
-        .get_tiles(Some(lat), Some(lon), None, None)
-        .await;
+    get_tiles_from_lat_lon(lat, lon, dataset, multiplier).await;
+}
+
+async fn get_tiles_from_lat_lon(
+    lat: f64,
+    lon: f64,
+    dataset: dataset::BucketName,
+    multiplier: &usize,
+) {
+    let mut retries = 0;
+
+    loop {
+        match LinzBucket::initialise_catalog(dataset, Some(*multiplier)).await {
+            Ok(mut linz_bucket) => {
+                let _tiles = linz_bucket
+                    .get_tiles(Some(lat), Some(lon), None, None)
+                    .await;
+                break;
+            }
+            Err(e) => {
+                retries += 1;
+                if retries >= 3 {
+                    eprintln!("Failed after 3 retries: {:?}", e);
+                    break;
+                }
+                eprintln!(
+                    "Error initializing catalog: {:?}. Retrying in 1 minute...",
+                    e
+                );
+                sleep(Duration::from_secs(60)).await;
+            }
+        }
+    }
 }
 
 fn bench_with_concurrency(c: &mut Criterion) {

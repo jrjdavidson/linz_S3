@@ -1,6 +1,13 @@
 
 # Changelog
 
+## [0.5.0] - 2025-05-30
+
+- more lockup testing.
+- keep and re-use store.
+- "-d" is now "--disable_downloads" and now ... disables downloads. It is false by default.
+- "--thread_multiplier" and "-t" multiplies the number of threads that will be used to fetch data.
+
 ## [0.4.6] - 2025-05-30
 
 - various optimisation and refactoring. still getting occasional lockups.

@@ -1,10 +1,10 @@
 [package]
 name = "linz_s3"
-version = "0.4.6"
+version = "0.5.0"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.5.39", features = ["derive"] }
+clap = { version = "4.5.40", features = ["derive"] }
 env_logger = "0.11.6"
 futures = "0.3.31"
 indicatif = "0.17.11"

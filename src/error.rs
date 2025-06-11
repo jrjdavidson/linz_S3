@@ -15,6 +15,8 @@ pub enum MyError {
     SendError(#[from] Box<tokio::sync::mpsc::error::SendError<stac::Item>>),
     #[error("Join error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
+    #[error("Error when setting thread permit limit.{0}")]
+    ThreadPermitError(&'static str),
 }
 
 impl MyError {

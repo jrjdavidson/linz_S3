@@ -44,6 +44,16 @@ impl LinzBucket {
             }
         }
         let permits = concurrency_multiplier.unwrap_or(1) * num_cpus::get();
+        if permits == 0 {
+            return Err(MyError::ThreadPermitError(
+                "Concurrency multiplier resulted in zero permits",
+            ));
+        }
+        if permits > Semaphore::MAX_PERMITS {
+            return Err(MyError::ThreadPermitError(
+                "Concurrency multiplier is too high, exceeds maximum permitted threads",
+            ));
+        }
         debug!("Number of permits: {}", permits);
         let semaphore = Arc::new(Semaphore::new(permits));
 

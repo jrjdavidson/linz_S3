@@ -51,7 +51,7 @@ async fn get_tiles_from_lat_lon(
 
 fn bench_with_concurrency(c: &mut Criterion) {
     let runtime = Runtime::new().unwrap();
-    let multipliers = [1, 2, 4, 8, 16, 32, usize::MAX]; // You can adjust these values
+    let multipliers = [1, 2, 4, 8, 16, 32, 1000]; // You can adjust these values
     let mut group = c.benchmark_group("Concurrency Benchmarks");
     // env_logger::builder().is_test(true).try_init().unwrap();
 

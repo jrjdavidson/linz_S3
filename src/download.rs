@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use log::{debug, info};
+use log::{debug, info, warn};
 use reqwest::get;
 use sanitize_filename::sanitize;
 use std::path::{Path, PathBuf};
@@ -9,6 +9,8 @@ use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
 use tokio::{signal, task};
+
+use crate::temp_file_wait::wait_for_temp_file;
 
 pub async fn process_tile_list(
     tile_list: &[(Vec<String>, String)],
@@ -55,10 +57,25 @@ pub async fn process_tile_list(
 
                 continue;
             }
-            // Create the subfolder if it doesn't exist
-            fs::create_dir_all(&output_folder).await.unwrap();
+            let temp_file_name = format!("{}.downloading", file_name);
+            let temp_path = output_folder.join(&temp_file_name);
+
+            let interval = Duration::from_secs(2);
+            let max_waits = 150;
+            match wait_for_temp_file(&temp_path, &url, max_waits, interval).await {
+                Ok(_) => {}
+                Err(e) => {
+                    warn!("Temp file wait error: {}", e);
+                    continue;
+                }
+            }
+
             tasks.push(task::spawn(async move {
-                download_file(&url, current_path, multiprogressbar).await;
+                download_file(&url, temp_path.clone(), multiprogressbar).await;
+                // After download, rename temp file to final file name
+                if temp_path.exists() {
+                    fs::rename(&temp_path, &current_path).await.unwrap();
+                }
             }));
         }
         let download_count = tasks.len();

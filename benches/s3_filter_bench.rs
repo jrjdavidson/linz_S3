@@ -28,11 +28,6 @@ async fn get_tiles_from_lat_lon(
     loop {
         match LinzBucket::initialise_catalog(dataset, Some(*multiplier)).await {
             Ok(mut linz_bucket) => {
-                linz_bucket.set_collection_filter(
-                    Some(&["Southland".to_string()]),
-                    None,
-                    Some((lat, lon, None, None)),
-                );
                 let _tiles = linz_bucket
                     .get_tiles(Some(lat), Some(lon), None, None)
                     .await;

@@ -1,5 +1,5 @@
 use crate::linz_s3_filter::dataset;
-use clap::{builder::ValueParser, Args, Parser, Subcommand};
+use clap::{builder::ValueParser, command, Args, Parser, Subcommand};
 
 /// Enum for search mode.
 #[derive(Parser)]

@@ -20,6 +20,7 @@ stac-extensions = "0.1.0"
 thiserror = "2.0.11"
 tokio = { version = "1.45.1", features = ["rt","rt-multi-thread", "signal"] }
 toml = "0.8.22"
+oxigdal = { version = "0.1.5", features = ["vrt"] }
 
 [lib]
 name = "linz_s3"

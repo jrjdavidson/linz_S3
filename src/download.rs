@@ -1,6 +1,8 @@
+use crate::args::PostProcessMode;
+use crate::gdal;
 use futures::StreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use log::{debug, info};
+use log::{debug, error, info};
 use reqwest::get;
 use sanitize_filename::sanitize;
 use std::path::{Path, PathBuf};
@@ -14,10 +16,13 @@ pub async fn process_tile_list(
     tile_list: &[(Vec<String>, String)],
     index: usize,
     download: bool,
-    cache_opt: &Option<PathBuf>,
+    cache_opt: Option<&Path>,
+    post_process: Option<PostProcessMode>,
+    post_process_output: Option<&Path>,
 ) {
     let mut tasks = vec![];
     let mut cache_count = 0;
+
     if download {
         let multiprogressbar = MultiProgress::new();
 
@@ -32,17 +37,17 @@ pub async fn process_tile_list(
             let _ = cancel_tx.send(());
         });
 
+        let subfolder = sanitize(tile_list[index].1.clone());
+        let output_folder = cache_opt.unwrap_or(Path::new(".")).join(&subfolder);
+        let mut local_tile_paths = Vec::new();
+
         for tile_url in &tile_list[index].0 {
             let multiprogressbar = multiprogressbar.clone();
             let url = tile_url.to_string();
-
-            let subfolder = sanitize(tile_list[index].1.clone());
-            let output_folder = cache_opt
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(&subfolder);
             let file_name = Path::new(&url).file_name().unwrap().to_str().unwrap();
             let current_path = output_folder.join(file_name);
+            local_tile_paths.push(current_path.clone());
+
             // Print file to stdout
             println!("{}", current_path.display());
             // Check if the file already exists in the cache or current directory
@@ -74,9 +79,13 @@ pub async fn process_tile_list(
                     "{} files found in cache, {} files downloaded",
                     cache_count, download_count
                 );
+
+                if let Some(mode) = post_process {
+                    run_post_process(mode, &local_tile_paths, post_process_output, &output_folder);
+                }
             },
             _ = cancel_rx => {
-            info!("Download process interrupted by user");
+                info!("Download process interrupted by user");
             }
         }
     } else {
@@ -85,6 +94,37 @@ pub async fn process_tile_list(
         for tile_url in &tile_list[index].0 {
             println!("{}", tile_url);
         }
+    }
+}
+
+fn run_post_process(
+    mode: PostProcessMode,
+    local_tile_paths: &[PathBuf],
+    post_process_output: Option<&Path>,
+    output_folder: &Path,
+) {
+    if local_tile_paths.is_empty() {
+        info!("Skipping post-processing: no local files were found.");
+        return;
+    }
+
+    let output_path = post_process_output.map(PathBuf::from).unwrap_or_else(|| {
+        let filename = match mode {
+            PostProcessMode::Vrt => "mosaic.vrt",
+        };
+        output_folder.join(filename)
+    });
+
+    let input_paths: Vec<String> = local_tile_paths
+        .iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect();
+
+    let output = output_path.to_string_lossy().to_string();
+    info!("Starting post-processing: {:?} -> {}", mode, output);
+
+    if let Err(err) = gdal::run_post_process(mode, &input_paths, &output) {
+        error!("Post-processing failed: {}", err);
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::linz_s3_filter::dataset;
-use clap::{builder::ValueParser, command, Args, Parser, Subcommand};
+use clap::{builder::ValueParser, Args, Parser, Subcommand, ValueEnum};
 
 /// Enum for search mode.
 #[derive(Parser)]
@@ -45,14 +45,30 @@ pub struct Cli {
     pub thread_multiplier: Option<usize>,
 }
 #[derive(Args)]
-#[group(multiple = false)]
 pub struct DownloadArgs {
     /// Just print the URLs. Cannot be used with --cache.
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        conflicts_with = "cache",
+        conflicts_with = "post_process",
+        conflicts_with = "post_process_output"
+    )]
     pub disable_download: bool,
     /// Cache directory for downloaded tiles.
-    #[arg(short, long, value_parser = folder_parser())]
+    #[arg(short, long, value_parser = folder_parser(), conflicts_with = "disable_download")]
     pub cache: Option<String>,
+    /// Run post-processing on downloaded files.
+    #[arg(long, value_enum, conflicts_with = "disable_download")]
+    pub post_process: Option<PostProcessMode>,
+    /// Output file path for post-processing result.
+    #[arg(long, requires = "post_process")]
+    pub post_process_output: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum PostProcessMode {
+    Vrt,
 }
 
 #[derive(Subcommand)]
@@ -178,4 +194,82 @@ fn log_level_parser() -> ValueParser {
         "error" | "warn" | "info" | "debug" | "trace" => Ok(s.to_string()),
         _ => Err(format!("Invalid log level: {}", s)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cli;
+    use clap::Parser;
+
+    #[test]
+    fn parses_post_process_vrt() {
+        let cli = Cli::try_parse_from([
+            "linz_s3",
+            "elevation",
+            "--post-process",
+            "vrt",
+            "coordinate",
+            "-45.0",
+            "167.0",
+        ]);
+
+        assert!(cli.is_ok(), "Expected --post-process vrt to parse");
+    }
+
+    #[test]
+    fn rejects_post_process_with_disable_download() {
+        let cli = Cli::try_parse_from([
+            "linz_s3",
+            "elevation",
+            "--disable-download",
+            "--post-process",
+            "vrt",
+            "coordinate",
+            "-45.0",
+            "167.0",
+        ]);
+
+        assert!(
+            cli.is_err(),
+            "Expected --post-process to conflict with --disable-download"
+        );
+    }
+
+    #[test]
+    fn accepts_post_process_output_with_post_process() {
+        let cli = Cli::try_parse_from([
+            "linz_s3",
+            "elevation",
+            "--post-process",
+            "vrt",
+            "--post-process-output",
+            "mosaic.vrt",
+            "coordinate",
+            "-45.0",
+            "167.0",
+        ]);
+
+        assert!(
+            cli.is_ok(),
+            "Expected --post-process-output to parse when --post-process is provided"
+        );
+    }
+
+    #[test]
+    fn rejects_post_process_output_without_post_process() {
+        let cli = Cli::try_parse_from([
+            "linz_s3",
+            "elevation",
+            "--post-process-output",
+            "mosaic.vrt",
+            "coordinate",
+            "-45.0",
+            "167.0",
+        ]);
+
+        assert!(
+            cli.is_err(),
+            "Expected --post-process-output to require --post-process"
+        );
+    }
 }

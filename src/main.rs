@@ -6,7 +6,7 @@ use linz_s3::process_tile_list;
 use linz_s3::{search_catalog, Cli};
 use log::{error, info};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 /// Command-line arguments for the LINZ S3 filter tool.
 
 #[tokio::main]
@@ -15,16 +15,16 @@ async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or(&args.log_level)).init();
     bucket_config::ConfigFile::init();
 
-    let spatial_filter_params = if args.spatial_filter.is_some() {
-        Some(SpatialFilterParams::new(args.spatial_filter.unwrap()))
-    } else {
-        None
-    };
-    let cache_path_opt: &Option<PathBuf> = &args
-        .download_args
-        .cache
-        .map(|cache| Path::new(&cache).to_owned());
+    let spatial_filter_params = args.spatial_filter.map(SpatialFilterParams::new);
+    let cache_path_opt = args.download_args.cache.as_deref().map(Path::new);
     let download = !args.download_args.disable_download;
+    let post_process = args.download_args.post_process;
+    let post_process_output_opt = args
+        .download_args
+        .post_process_output
+        .as_deref()
+        .map(Path::new);
+
     let tile_list = search_catalog(
         args.bucket,
         spatial_filter_params,
@@ -49,7 +49,15 @@ async fn main() {
                 }
                 1 => {
                     info!("Exactly 1 dataset found, processing...");
-                    process_tile_list(&tile_list, 0, download, cache_path_opt).await;
+                    process_tile_list(
+                        &tile_list,
+                        0,
+                        download,
+                        cache_path_opt,
+                        post_process,
+                        post_process_output_opt,
+                    )
+                    .await;
                 }
                 _ => {
                     info!("{} datasets found.", tile_list.len());
@@ -62,7 +70,15 @@ async fn main() {
                                 index, &tile_list[index].1
                             );
 
-                            process_tile_list(&tile_list, index, download, cache_path_opt).await;
+                            process_tile_list(
+                                &tile_list,
+                                index,
+                                download,
+                                cache_path_opt,
+                                post_process,
+                                post_process_output_opt,
+                            )
+                            .await;
                         } else {
                             eprintln!("Error: Index {} is out of bounds. There are only {} datasets available.", index, tile_list.len());
                         }
@@ -79,12 +95,27 @@ async fn main() {
                             &tile_list[index_of_longest].1
                         );
 
-                        process_tile_list(&tile_list, index_of_longest, download, cache_path_opt)
-                            .await;
+                        process_tile_list(
+                            &tile_list,
+                            index_of_longest,
+                            download,
+                            cache_path_opt,
+                            post_process,
+                            post_process_output_opt,
+                        )
+                        .await;
                     } else if args.by_all {
                         info!("Automatically picked all datasets.");
                         for (index, _) in tile_list.iter().enumerate() {
-                            process_tile_list(&tile_list, index, download, cache_path_opt).await;
+                            process_tile_list(
+                                &tile_list,
+                                index,
+                                download,
+                                cache_path_opt,
+                                post_process,
+                                post_process_output_opt,
+                            )
+                            .await;
                         }
                     } else {
                         loop {
@@ -110,8 +141,15 @@ async fn main() {
                                         index, &tile_list[index].1
                                     );
 
-                                    process_tile_list(&tile_list, index, download, cache_path_opt)
-                                        .await;
+                                    process_tile_list(
+                                        &tile_list,
+                                        index,
+                                        download,
+                                        cache_path_opt,
+                                        post_process,
+                                        post_process_output_opt,
+                                    )
+                                    .await;
 
                                     break;
                                 }

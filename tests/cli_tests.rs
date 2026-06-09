@@ -483,6 +483,43 @@ fn test_valid_search_with_download_and_cache() {
     assert_eq!(mod_times_before, mod_times_after, "Files were overwritten",);
 }
 
+#[test]
+#[serial]
+fn test_post_process_creates_vrt_file() {
+    let temp_dir = tempdir().unwrap();
+    let temp_path = temp_dir.path();
+    let output_vrt = temp_path.join("mosaic.vrt");
+
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("elevation")
+        .arg("--by-first-index")
+        .arg("--include-collection-name")
+        .arg("Southland")
+        .arg("--post-process")
+        .arg("vrt")
+        .arg("--post-process-output")
+        .arg(&output_vrt)
+        .arg("coordinate")
+        .arg("-45.9006")
+        .arg("169.1860")
+        .arg("-45.2865")
+        .arg("175.7762")
+        .current_dir(temp_path);
+
+    cmd.assert().success();
+    assert!(
+        output_vrt.exists(),
+        "Expected post-process VRT output to exist at {}",
+        output_vrt.display()
+    );
+    let vrt_metadata = fs::metadata(&output_vrt).unwrap();
+    assert!(
+        vrt_metadata.len() > 0,
+        "Expected post-process VRT output to be non-empty at {}",
+        output_vrt.display()
+    );
+}
+
 fn check_folder_content(files: &[PathBuf], file_number: usize) {
     // Check if there is exactly one subfolder in the temporary directory
     let subfolders: Vec<_> = files.iter().filter(|path| path.is_dir()).collect();

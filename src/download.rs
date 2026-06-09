@@ -50,6 +50,9 @@ pub async fn process_tile_list(
 
             // Print file to stdout
             println!("{}", current_path.display());
+            // Create the subfolder if it doesn't exist
+            fs::create_dir_all(&output_folder).await.unwrap();
+
             // Check if the file already exists in the cache or current directory
             if current_path.exists() {
                 debug!(

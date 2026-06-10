@@ -1,6 +1,5 @@
 use crate::args::PostProcessMode;
 use crate::gdal;
-use futures::StreamExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use log::{debug, error, info};
 use reqwest::get;
@@ -155,10 +154,9 @@ async fn download_file(url: &str, output_file: PathBuf, multi_progress: MultiPro
             pb.enable_steady_tick(Duration::from_millis(100));
 
             let mut file = File::create(output_file).await.unwrap();
-            let mut stream = response.bytes_stream();
 
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.unwrap();
+            let mut response = response;
+            while let Some(chunk) = response.chunk().await.unwrap() {
                 file.write_all(&chunk).await.unwrap();
                 pb.inc(chunk.len() as u64);
             }

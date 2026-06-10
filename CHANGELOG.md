@@ -1,5 +1,10 @@
-
 # Changelog
+
+## [0.6.0] - 2026-06-10
+
+- add a new post-processing mode to create a VRT from downloaded tiles.
+- simplify post-processing flow and related code paths.
+- normalize path argument handling to borrowed path references in download flow.
 
 ## [0.5.0] - 2025-05-30
 

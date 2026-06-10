@@ -4,6 +4,12 @@ use assert_cmd::Command;
 use serial_test::serial;
 use tempfile::tempdir;
 
+fn linz_s3_cmd() -> Command {
+    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    cmd.arg("-t").arg("10");
+    cmd
+}
+
 #[test]
 #[serial]
 fn test_latlonsearch() {
@@ -11,7 +17,7 @@ fn test_latlonsearch() {
     let lon1 = "170.8860";
     let lat2 = "-45.2865";
     let lon2 = "175.7762";
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("coordinate")
@@ -29,7 +35,7 @@ fn test_latlonsearch() {
 #[test]
 #[serial]
 fn test_areasearch() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-first-index")
@@ -48,7 +54,7 @@ fn test_areasearch() {
 
 #[test]
 fn test_invalid_search_mode() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("imagery")
         .arg("invalid_mode")
         .arg("40.9006")
@@ -66,7 +72,7 @@ fn test_invalid_search_mode() {
 
 #[test]
 fn test_missing_arguments_for_areasearch() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation").arg("area").arg("-45.0").arg("167.0");
     let num_lines = 0; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
@@ -81,7 +87,7 @@ fn test_missing_arguments_for_areasearch() {
 
 #[test]
 fn test_missing_arguments_for_coordinatesearch() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation").arg("coordinate").arg("-45.0");
     let num_lines = 0; // Specify the number of lines you want to match
     let pred = predicates::str::is_match(format!(r"^([^\n]*\n){{{}}}$", num_lines)).unwrap();
@@ -96,7 +102,7 @@ fn test_missing_arguments_for_coordinatesearch() {
 
 #[test]
 fn test_invalid_latlon_values() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("coordinate")
@@ -114,7 +120,7 @@ fn test_invalid_latlon_values() {
 #[test]
 #[serial]
 fn test_empty_search_results() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("coordinate")
@@ -135,7 +141,7 @@ fn test_empty_search_results() {
 #[test]
 #[serial]
 fn test_all_datasets() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-all")
@@ -154,7 +160,7 @@ fn test_all_datasets() {
 
 #[test]
 fn test_invalid_args() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-first-index")
@@ -179,7 +185,7 @@ fn test_valid_search_with_download() {
     let temp_dir = tempdir().unwrap();
     let temp_path = temp_dir.path();
 
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("coordinate")
         .arg("-45.9006")
@@ -209,7 +215,7 @@ fn test_valid_search_with_download() {
 #[test]
 #[serial]
 fn test_valid_search_with_condition() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-first-index")
@@ -227,7 +233,7 @@ fn test_valid_search_with_condition() {
 #[serial]
 fn test_valid_search_with_index() {
     // could improve check
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--include-collection-name")
@@ -247,7 +253,7 @@ fn test_valid_search_with_index() {
 #[test]
 #[serial]
 fn test_valid_search_with_missing_index() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-index") // No specific index provided, should default to 0
@@ -265,7 +271,7 @@ fn test_valid_search_with_missing_index() {
 #[test]
 #[serial]
 fn test_invalid_search_with_out_of_bounds_index() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--by-index")
@@ -282,7 +288,7 @@ fn test_invalid_search_with_out_of_bounds_index() {
 #[test]
 #[serial]
 fn test_valid_search_with_conditon_and_one_result() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--include-collection-name")
@@ -300,7 +306,7 @@ fn test_valid_search_with_conditon_and_one_result() {
 #[test]
 #[serial]
 fn test_valid_search_with_conditon_and_mulitple_result() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--include-collection-name")
@@ -320,7 +326,7 @@ fn test_valid_search_with_conditon_and_mulitple_result() {
 #[test]
 #[serial]
 fn test_valid_search_with_multiple_filters() {
-    let mut cmd = Command::cargo_bin("linz_s3").unwrap();
+    let mut cmd = linz_s3_cmd();
     cmd.arg("elevation")
         .arg("--disable-download")
         .arg("--include-collection-name")

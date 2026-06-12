@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf, time::SystemTime};
 
 use assert_cmd::Command;
+use regex::Regex;
 use serial_test::serial;
 use tempfile::tempdir;
 
@@ -523,6 +524,69 @@ fn test_post_process_creates_vrt_file() {
         vrt_metadata.len() > 0,
         "Expected post-process VRT output to be non-empty at {}",
         output_vrt.display()
+    );
+
+    // Parse VRT and verify all source paths resolve to existing files
+    let vrt_content = fs::read_to_string(&output_vrt).expect("Should be able to read VRT file");
+    let source_regex = Regex::new(r"(?s)<SourceFilename[^>]*>(.*?)</SourceFilename>")
+        .expect("regex should compile");
+
+    let source_paths: Vec<String> = source_regex
+        .captures_iter(&vrt_content)
+        .map(|capture| capture[1].trim().to_string())
+        .collect();
+
+    assert!(
+        !source_paths.is_empty(),
+        "VRT should contain at least one SourceFilename reference"
+    );
+
+    // Verify each source path resolves to an existing file
+    for source_path in &source_paths {
+        let resolved_path = if PathBuf::from(source_path).is_absolute() {
+            PathBuf::from(source_path)
+        } else {
+            output_vrt
+                .parent()
+                .expect("VRT should have parent directory")
+                .join(source_path)
+        };
+
+        assert!(
+            resolved_path.exists(),
+            "VRT source path should resolve to existing file: {}",
+            resolved_path.display()
+        );
+    }
+
+    // Verify source files are in the expected subfolder (collection directory)
+    let subdirs: Vec<_> = fs::read_dir(temp_path)
+        .expect("Should read temp directory")
+        .filter_map(|entry| entry.ok().map(|e| e.path()).filter(|p| p.is_dir()))
+        .collect();
+
+    assert_eq!(
+        subdirs.len(),
+        1,
+        "Expected exactly one subdirectory (the collection folder)"
+    );
+    let collection_dir = &subdirs[0];
+
+    let downloaded_files: Vec<_> = fs::read_dir(collection_dir)
+        .expect("Should read collection directory")
+        .filter_map(|entry| {
+            entry.ok().map(|e| e.path()).filter(|p| {
+                p.is_file()
+                    && p.extension()
+                        .is_some_and(|ext| ext == "tif" || ext == "tiff")
+            })
+        })
+        .collect();
+
+    assert_eq!(
+        source_paths.len(),
+        downloaded_files.len(),
+        "VRT source count should match downloaded TIFF/TIFF count"
     );
 }
 

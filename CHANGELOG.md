@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-06-12
+
+- fix VRT source paths: convert to relative paths relative to VRT file location for better portability.
+- add comprehensive test to verify VRT source paths resolve to actual downloaded TIFF files.
+
 ## [0.6.0] - 2026-06-10
 
 - add a new post-processing mode to create a VRT from downloaded tiles.
